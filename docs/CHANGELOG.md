@@ -1,3 +1,11 @@
+# 1.2.0
+
+- Foto preparada por colagem no campo da conversa, substituindo a alteração do input de arquivo.
+- Preenchimento e conferência da legenda antes de um único clique automático no envio da mídia.
+- Reconhecimento de campos de legenda já existentes, mas ocultos antes da colagem.
+- Teste de colagem com arquivo e avanço automático para o segundo contato após o intervalo real entre lotes.
+- A confirmação de saída mantém o delay e a continuidade da fila; resultados incertos não são reenviados.
+
 # 1.1.0
 
 - Reconhecimento da prévia de foto com imagem, canvas e fundo CSS; suporte aos novos ícones de envio e ao layout dentro de `#main/footer`.

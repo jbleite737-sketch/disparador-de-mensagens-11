@@ -42,7 +42,7 @@
   const signature = element => element.getAttribute('src') || element.getAttribute('style') || `${element.width}x${element.height}`;
   function snapshot() {
     return {
-      editors: new Set(document.querySelectorAll(editorSelector)),
+      editors: new Set([...document.querySelectorAll(editorSelector)].filter(visible)),
       buttons: new Set(sendButtons()),
       media: new Map(mediaNodes().map(e => [e, signature(e)])),
     };

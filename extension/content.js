@@ -32,19 +32,13 @@
  function mediaPreview(){return previewBaseline?dom.preview(previewBaseline):null;}
  async function preparePhoto(view){
   previewBaseline=dom.snapshot();
-  const icon=view.main.querySelector('footer [data-icon="plus-rounded"],footer [data-icon="attach-menu-plus"],footer [data-icon="plus"]');
-  const attach=icon?.closest('button,[role="button"]')||view.main.querySelector('footer button[aria-label="Anexar"],footer button[aria-label="Attach"]');
-  if(!visible(attach))throw Error('Botão de anexar foto não encontrado. A interface pode ter mudado.');
-  attach.click();
-  let input;const inputDeadline=Date.now()+5000;
-  while(Date.now()<inputDeadline){
-   input=dom.photoInput();
-   if(input)break;await sleep(150);
-  }
-  if(!input)throw failure('MEDIA_INPUT_NOT_FOUND','Seletor de foto não encontrado. Nenhum envio foi acionado.');
   const bytes=Uint8Array.from(atob(job.media.base64),c=>c.charCodeAt(0));
   const file=new File([bytes],job.media.name,{type:job.media.type});
-  const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+  // Paste the photo into the conversation so WhatsApp creates its caption editor.
+  // No system clipboard access and no separate text message.
+  const transfer=new DataTransfer();transfer.items.add(file);
+  view.box.focus();
+  view.box.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,composed:true,clipboardData:transfer}));
   let preview;const deadline=Date.now()+35000;
   while(Date.now()<deadline){preview=mediaPreview();if(preview)break;await sleep(250);}
   if(!preview)throw failure('MEDIA_PREVIEW_TIMEOUT','A prévia da foto não ficou pronta. Nenhum envio acionado. '+dom.diagnostics(previewBaseline));

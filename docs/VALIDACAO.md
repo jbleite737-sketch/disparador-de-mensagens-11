@@ -1,8 +1,8 @@
-# Validação da versão 1.1.0
+# Validação da versão 1.2.0
 
 - `npm test`: 16 testes passaram, zero falhas. Abrangem CSV/telefones, personalização, limites, exportação, persistência de mídia, rejeição de formatos, tokens da fila, pausa, reinício e resultados incertos.
 - `npm run test:browser`: 15 verificações passaram no Chromium. Incluem XLSX real, deduplicação, campos personalizados, rascunho, fluxo de texto, pausa, relatório, destinatário incorreto, lista colada, renderização sem execução de HTML, foto persistida, foto + legenda em um único clique, ausência de exceções e layout estreito.
-- `npm run test:dom`: 6 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea e rejeição de prévias ambíguas.
+- `npm run test:dom`: 7 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto e rejeição de prévias ambíguas.
 - A página de teste usa a política `script-src 'self'; object-src 'none'`, equivalente à restrição de scripts do manifesto. ExcelJS funciona como biblioteca local, sem CDN.
 - `npm run package`: ZIPs gerados e reabertos com validação de CRC e verificação dos arquivos obrigatórios do manifesto.
 - Teste de dois lotes consecutivos: intervalo mínimo/máximo de 30 segundos, um contato por lote e pausa de 30 segundos. O segundo lote iniciou automaticamente após pelo menos 60 segundos de relógio real; cada contato recebeu uma operação com arquivo e legenda juntos, sem envio de texto separado.
@@ -17,3 +17,5 @@ Nenhuma conta de WhatsApp foi conectada; nenhuma mensagem real foi enviada. Faç
 A versão distribuída envia uma foto por campanha, opcionalmente com legenda, ou texto sem foto. Não inclui vídeos, áudios, PDFs ou galerias.
 
 A falha real relatada pelo usuário na 1.0 foi usada para revisar os seletores, mas a conta real do usuário não está acessível neste ambiente. O resultado dos testes simulados não comprova a compatibilidade com todas as versões atuais do WhatsApp Web.
+
+Na versão 1.2, o teste de navegador recebe o arquivo via evento `paste`, confere uma colagem e um clique de envio, a legenda final e a continuidade sem intervenção. O receptor de colagem é simulado: a aceitação de ClipboardEvent sintético pelo WhatsApp real permanece não validada.

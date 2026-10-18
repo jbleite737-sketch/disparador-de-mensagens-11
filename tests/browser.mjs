@@ -46,8 +46,9 @@ try{
   const routeURL=new URL(route.request().url());assert.equal(routeURL.searchParams.has('text'),false);const p=routeURL.searchParams.get('phone');
   await route.fulfill({contentType:'text/html; charset=utf-8',body:`<!doctype html><div id="main"><header>+${p}</header><div id="history"></div><footer><div contenteditable="true" role="textbox" style="min-height:20px"></div><button aria-label="Anexar"><span data-icon="plus-rounded">+</span></button><input type="file" accept="image/*" hidden></footer></div><script>
    history.replaceState({},'', '/');
-   document.querySelector('input').onchange=e=>{
-    const file=e.target.files[0];window.uploadedName=file.name;window.uploadedSize=file.size;
+   document.querySelector('[contenteditable]').onpaste=e=>{
+    e.preventDefault();window.pasteCount=(window.pasteCount||0)+1;
+    const file=e.clipboardData.files[0];window.uploadedName=file.name;window.uploadedSize=file.size;
     const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" role="textbox" style="min-height:30px"></div><div role="button" aria-label="Enviar"><span data-icon="wds-ic-send-filled">Enviar foto</span></div>';
     const imageURL=URL.createObjectURL(file);const previewImage=new Image();previewImage.onload=()=>dialog.querySelector('canvas').getContext('2d').drawImage(previewImage,0,0,180,160);previewImage.src=imageURL;document.querySelector('#main footer').append(dialog);
     dialog.querySelector('[role=button]').onclick=()=>{window.mediaClicks=(window.mediaClicks||0)+1;const bubble=document.createElement('div');bubble.className='message-out';bubble.style.whiteSpace='pre-wrap';const image=document.createElement('img');image.src=imageURL;bubble.append(image,document.createTextNode(dialog.querySelector('[contenteditable]').innerText));document.querySelector('#history').append(bubble);dialog.remove();};
@@ -63,13 +64,13 @@ try{
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'artifacts/interface.png',fullPage:true});
  await page.locator('#start').click();await page.locator('#accept-confirm').click();await page.waitForFunction(()=>document.querySelector('#submitted').textContent==='1',{},{timeout:15000});
  const photoTab=tabs.get(data.campaign.tabId);
- assert.equal(await photoTab.evaluate(()=>window.mediaClicks),1);assert.equal(await photoTab.evaluate(()=>window.uploadedName),'128.png');assert.equal((await photoTab.locator('.message-out').innerText()).trim(),mediaJobs[0].message.caption);assert.equal(await photoTab.locator('.message-out img').count(),1);pass('Foto canvas + legenda multiline enviada uma vez pelo botão novo dentro de #main/footer');
+ assert.equal(await photoTab.evaluate(()=>window.mediaClicks),1);assert.equal(await photoTab.evaluate(()=>window.pasteCount),1);assert.equal(await photoTab.evaluate(()=>window.uploadedName),'128.png');assert.equal((await photoTab.locator('.message-out').innerText()).trim(),mediaJobs[0].message.caption);assert.equal(await photoTab.locator('.message-out img').count(),1);pass('Foto canvas + legenda multiline enviada uma vez pelo botão novo dentro de #main/footer');
  assert.equal(mediaJobs[0].message.type,'image');assert.equal(typeof mediaJobs[0].message.media.base64,'string');assert.equal(Object.hasOwn(mediaJobs[0].message,'text'),false);
  assert.match(await page.locator('#notice').textContent(),/próximo lote começa automaticamente/);
  console.log('Aguardando 30s de intervalo + 30s de pausa de lote (relógio real)…');
  await page.waitForFunction(()=>document.querySelector('#state').textContent==='Concluída',{},{timeout:85000});
  assert.equal(await page.locator('#submitted').textContent(),'2');assert.equal(mediaJobs.length,2);assert.ok(mediaJobs[1].at-mediaJobs[0].at>=60000);
- assert.equal(await photoTab.evaluate(()=>window.mediaClicks),1);assert.equal((await photoTab.locator('.message-out').innerText()).trim(),mediaJobs[1].message.caption);assert.notEqual(mediaJobs[0].message.caption,mediaJobs[1].message.caption);
+ assert.equal(await photoTab.evaluate(()=>window.mediaClicks),1);assert.equal(await photoTab.evaluate(()=>window.pasteCount),1);assert.equal((await photoTab.locator('.message-out').innerText()).trim(),mediaJobs[1].message.caption);assert.notEqual(mediaJobs[0].message.caption,mediaJobs[1].message.caption);
  pass('Dois lotes completados automaticamente, delay real >=60s, uma mensagem foto+legenda por contato');
  assert.deepEqual(errors,[]);pass('Sem exceções JavaScript na interface');
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'artifacts/interface-mobile.png',fullPage:true});pass('Layout estreito não cria rolagem horizontal');
