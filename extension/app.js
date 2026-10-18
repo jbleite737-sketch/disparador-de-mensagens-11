@@ -1,7 +1,7 @@
 import {storeAsset,readAsset,deleteAsset} from './media.js';
 import {parseCSV,importRows,personalize,csvExport,emptyState,key} from './core.js';
 const $=id=>document.getElementById(id);let state=emptyState(),sheets=[],rows=[],previewIndex=0,dirty=false,toastTimer,photoUrl,renderedPhoto;
-const labels={pending:'Pendente',preparing:'Abrindo',sending:'Enviando',submitted:'Submetida',error:'Erro',uncertain:'Incerta',reviewed:'Revisada'};
+const labels={pending:'Pendente',preparing:'Preparando / aguardando',sending:'Enviando',submitted:'Submetida',error:'Erro',uncertain:'Incerta',reviewed:'Revisada'};
 const states={draft:'Rascunho',running:'Em andamento',paused:'Pausada',completed:'Concluída'};
 const rpc=async(type,more={})=>{const r=await chrome.runtime.sendMessage({type,...more});if(!r?.ok)throw Error(r?.error||'Não foi possível acessar a extensão.');return r.data;};
 function toast(text){clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,6500);}
@@ -38,7 +38,7 @@ function render(loadInputs=false){
  }
  showPreview();countdown();renderPhoto().catch(e=>toast(e.message));
 }
-function countdown(){const n=state.nextAt?Math.max(0,Math.ceil((state.nextAt-Date.now())/1000)):0;$('countdown').textContent=state.status==='running'&&state.nextAt?(n?'Próximo contato em '+n+'s':'Aguardando o Chrome iniciar o próximo contato…'):'';}
+function countdown(){const n=state.nextAt?Math.max(0,Math.ceil((state.nextAt-Date.now())/1000)):0;$('countdown').textContent=state.status==='running'&&state.nextAt?(n?'Próximo envio em '+n+'s':'Preparando o envio automático…'):'';}
 function mapSheet(){
  rows=sheets[+$('sheet').value]?.rows||[];if(!rows.length)throw Error('Aba vazia.');
  for(const id of ['phone-column','name-column']){

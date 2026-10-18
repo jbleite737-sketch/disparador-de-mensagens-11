@@ -50,13 +50,15 @@
   while(Date.now()<deadline){view=surface();if(view)break;await sleep(500);}
   if(!view)throw Error('Não foi possível confirmar destinatário e texto. Verifique login, número e interface; nenhuma mensagem foi acionada.');
   let preview;if(job.media)preview=await preparePhoto(view);
-  await rpc('READY',{token:job.token});
+  // The next conversation opens immediately; sending remains gated by the worker.
+  while(Date.now()<(job.notBefore||0))await sleep(Math.min(1000,job.notBefore-Date.now()));
+  while(!await rpc('READY',{token:job.token}))await sleep(250);
   if(!await rpc('VERIFY',{token:job.token}))throw Error('Fila pausada antes do envio.');
   if(!view.main.isConnected||!identity(view.main))throw Error('A conversa mudou antes do envio.');
   let button;
   if(job.media){
-   const current=mediaPreview();if(!current||current.button!==preview.button||current.image!==preview.image||dom.text(current.caption)!==normalize(job.text))throw Error('A foto ou a legenda mudou antes do envio.');
-   button=current.button;
+   const current=mediaPreview();if(!current||dom.signature(current.image)!==dom.signature(preview.image)||dom.text(current.caption)!==normalize(job.text))throw Error('A foto ou a legenda mudou antes do envio.');
+   preview=current;button=current.button;
   }else{
    const current=surface();if(!current||current.main!==view.main||current.box!==view.box)throw Error('A conversa mudou antes do envio.');button=current.button;
   }

@@ -1,3 +1,10 @@
+# 1.3.0
+
+- Corrigida interrupção antes do clique quando o botão ou a imagem são recriados durante a edição da legenda; os elementos atuais são localizados novamente e conferidos.
+- Próxima conversa aberta imediatamente após confirmar a mensagem anterior. A autorização de envio aguarda o delay persistido no worker, incluindo a pausa de lote.
+- Contagem regressiva informa o próximo envio; o watchdog considera o intervalo de espera.
+- Regressões para botão recriado, bloqueio antes do horário permitido e pausa durante o delay.
+
 # 1.2.0
 
 - Foto preparada por colagem no campo da conversa, substituindo a alteração do input de arquivo.

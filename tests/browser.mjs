@@ -5,11 +5,12 @@ import {chromium} from 'playwright-core';import assert from 'node:assert/strict'
 const ext=resolve('extension'),temp=await mkdtemp(join(tmpdir(),'contato-flow-test-'));await mkdir('artifacts',{recursive:true});
 const server=createServer(async(req,res)=>{try{const path=resolve(ext,'.'+new URL(req.url,'http://localhost').pathname);if(!path.startsWith(ext+'/'))throw Error('path');const b=await readFile(path);res.writeHead(200,{'Content-Security-Policy':"script-src 'self'; object-src 'none'",'Content-Type':({'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png'})[extname(path)]||'text/plain'});res.end(b);}catch{res.writeHead(404);res.end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));const base=`http://127.0.0.1:${server.address().port}/`;
 const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1440,height:1080},acceptDownloads:true});
-let data={},receiver,onAlarm,removed,nextId=1,passed=0;const tabs=new Map(),timers=new Map(),mediaJobs=[];const pass=s=>{passed++;console.log('PASS',s);};
+let data={},receiver,onAlarm,removed,nextId=1,passed=0;const tabs=new Map(),timers=new Map(),mediaJobs=[],mediaResults=[];const pass=s=>{passed++;console.log('PASS',s);};
 const contentSource=(await readFile('extension/whatsapp-dom.js','utf8'))+'\n'+(await readFile('extension/content.js','utf8'));
 globalThis.chrome={runtime:{id:'test',getURL:p=>base+p,onMessage:{addListener:f=>receiver=f},onStartup:{addListener:()=>{}}},storage:{local:{get:async()=>structuredClone(data),set:async v=>{const old=data;data={...data,...structuredClone(v)};for(const p of context.pages())if(p.url().startsWith(base))await p.evaluate(change=>window.__storageChange?.(change),{campaign:{oldValue:old.campaign,newValue:data.campaign}}).catch(()=>{});}}},action:{onClicked:{addListener:()=>{}}},alarms:{create:async(n,a)=>{clearTimeout(timers.get(n));const ms=Math.max(0,a.when-Date.now());timers.set(n,setTimeout(()=>onAlarm({name:n}),ms));},clear:async n=>{clearTimeout(timers.get(n));timers.delete(n);},onAlarm:{addListener:f=>onAlarm=f}},tabs:{get:async id=>{if(!tabs.has(id))throw Error('no tab');return{id};},create:async({url})=>{const page=await context.newPage();const id=nextId++;tabs.set(id,page);page.on('close',()=>{tabs.delete(id);removed?.(id);});await page.goto(url);return{id};},update:async(id,{url})=>{const p=tabs.get(id);await p.goto(url);await p.addScriptTag({content:contentSource});return{id};},onRemoved:{addListener:f=>removed=f}}};
 await import('../extension/background.js?browser');
 await context.exposeBinding('extensionRPC',async({page},m)=>{
+ if(m.type==='RESULT'&&m.status==='submitted'&&data.campaign.media){mediaResults.push(await page.evaluate(()=>({at:Date.now(),clicks:window.mediaClicks,pastes:window.pasteCount,name:window.uploadedName,caption:document.querySelector('.message-out').innerText.trim(),images:document.querySelectorAll('.message-out img').length})));}
  if(m.type==='SAVE'&&m.media){
   const bytes=await page.evaluate(async id=>{const {readAsset}=await import('/media.js');return [...new Uint8Array(await (await readAsset(id)).arrayBuffer())];},m.media.id);
   await new Promise((resolve,reject)=>{const r=indexedDB.open('contato-flow-media',1);r.onupgradeneeded=()=>r.result.createObjectStore('photos');r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos','readwrite');tx.objectStore('photos').put(new File([new Uint8Array(bytes)],m.media.name,{type:m.media.type}),m.media.id);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});
@@ -51,7 +52,9 @@ try{
     const file=e.clipboardData.files[0];window.uploadedName=file.name;window.uploadedSize=file.size;
     const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" role="textbox" style="min-height:30px"></div><div role="button" aria-label="Enviar"><span data-icon="wds-ic-send-filled">Enviar foto</span></div>';
     const imageURL=URL.createObjectURL(file);const previewImage=new Image();previewImage.onload=()=>dialog.querySelector('canvas').getContext('2d').drawImage(previewImage,0,0,180,160);previewImage.src=imageURL;document.querySelector('#main footer').append(dialog);
-    dialog.querySelector('[role=button]').onclick=()=>{window.mediaClicks=(window.mediaClicks||0)+1;const bubble=document.createElement('div');bubble.className='message-out';bubble.style.whiteSpace='pre-wrap';const image=document.createElement('img');image.src=imageURL;bubble.append(image,document.createTextNode(dialog.querySelector('[contenteditable]').innerText));document.querySelector('#history').append(bubble);dialog.remove();};
+    dialog.querySelector('[contenteditable]').addEventListener('input',()=>{const old=dialog.querySelector('[role=button]');const replacement=old.cloneNode(true);old.replaceWith(replacement);window.buttonReplaced=true;},{once:true});
+    dialog.addEventListener('click',event=>{if(!event.target.closest('[role=button]'))return;send();});
+    const send=()=>{window.mediaClicks=(window.mediaClicks||0)+1;const bubble=document.createElement('div');bubble.className='message-out';bubble.style.whiteSpace='pre-wrap';const image=document.createElement('img');image.src=imageURL;bubble.append(image,document.createTextNode(dialog.querySelector('[contenteditable]').innerText));document.querySelector('#history').append(bubble);dialog.remove();};
    };
   </script>`});
  });
@@ -64,12 +67,16 @@ try{
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'artifacts/interface.png',fullPage:true});
  await page.locator('#start').click();await page.locator('#accept-confirm').click();await page.waitForFunction(()=>document.querySelector('#submitted').textContent==='1',{},{timeout:15000});
  const photoTab=tabs.get(data.campaign.tabId);
- assert.equal(await photoTab.evaluate(()=>window.mediaClicks),1);assert.equal(await photoTab.evaluate(()=>window.pasteCount),1);assert.equal(await photoTab.evaluate(()=>window.uploadedName),'128.png');assert.equal((await photoTab.locator('.message-out').innerText()).trim(),mediaJobs[0].message.caption);assert.equal(await photoTab.locator('.message-out img').count(),1);pass('Foto canvas + legenda multiline enviada uma vez pelo botão novo dentro de #main/footer');
+ assert.equal(mediaResults[0].clicks,1);assert.equal(mediaResults[0].pastes,1);assert.equal(mediaResults[0].name,'128.png');assert.equal(mediaResults[0].caption,mediaJobs[0].message.caption);assert.equal(mediaResults[0].images,1);pass('Foto e legenda enviadas automaticamente mesmo com botão recriado após digitar');
  assert.equal(mediaJobs[0].message.type,'image');assert.equal(typeof mediaJobs[0].message.media.base64,'string');assert.equal(Object.hasOwn(mediaJobs[0].message,'text'),false);
  assert.match(await page.locator('#notice').textContent(),/próximo lote começa automaticamente/);
+ await page.waitForFunction(()=>document.querySelector('#submitted').textContent==='1');
+ await photoTab.waitForFunction(()=>window.pasteCount===1);
+ assert.equal(mediaJobs.length,2);assert.ok(mediaJobs[1].at-mediaResults[0].at<10000);assert.equal(await photoTab.evaluate(()=>window.mediaClicks||0),0);
+ pass('Próximo contato aberto imediatamente, sem clicar em Enviar durante o delay');
  console.log('Aguardando 30s de intervalo + 30s de pausa de lote (relógio real)…');
  await page.waitForFunction(()=>document.querySelector('#state').textContent==='Concluída',{},{timeout:85000});
- assert.equal(await page.locator('#submitted').textContent(),'2');assert.equal(mediaJobs.length,2);assert.ok(mediaJobs[1].at-mediaJobs[0].at>=60000);
+ assert.equal(await page.locator('#submitted').textContent(),'2');assert.equal(mediaJobs.length,2);assert.ok(mediaResults[1].at-mediaResults[0].at>=60000);
  assert.equal(await photoTab.evaluate(()=>window.mediaClicks),1);assert.equal(await photoTab.evaluate(()=>window.pasteCount),1);assert.equal((await photoTab.locator('.message-out').innerText()).trim(),mediaJobs[1].message.caption);assert.notEqual(mediaJobs[0].message.caption,mediaJobs[1].message.caption);
  pass('Dois lotes completados automaticamente, delay real >=60s, uma mensagem foto+legenda por contato');
  assert.deepEqual(errors,[]);pass('Sem exceções JavaScript na interface');

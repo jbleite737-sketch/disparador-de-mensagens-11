@@ -20,7 +20,7 @@
   };
   function sendButtons(root = document) {
     const candidates = new Set();
-    for (const icon of root.querySelectorAll('[data-icon="send"],[data-icon="wds-ic-send-filled"],[data-icon="send-filled"],[data-testid="send"]')) {
+    for (const icon of root.querySelectorAll('[data-icon="send"],[data-icon="wds-ic-send-filled"],[data-icon="send-filled"],[data-icon="send-alt"],[data-testid="send"]')) {
       const button = icon.closest('button,[role="button"]');
       if (button) candidates.add(button);
     }
@@ -90,5 +90,5 @@
   function diagnostics(before) {
     return `editores novos=${[...document.querySelectorAll(editorSelector)].filter(e => visible(e) && !before.editors.has(e)).length}; prévias visuais=${mediaNodes().filter(e => !before.media.has(e)).length}; botões de envio=${sendButtons().length}`;
   }
-  globalThis.ContatoWhatsAppDOM = {visible, normalize, text, sendButtons, mediaNodes, snapshot, preview, photoInput, setCaption, diagnostics};
+  globalThis.ContatoWhatsAppDOM = {visible, normalize, text, sendButtons, mediaNodes, snapshot, preview, photoInput, setCaption, diagnostics, signature};
 })();

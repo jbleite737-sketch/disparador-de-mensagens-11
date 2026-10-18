@@ -22,7 +22,7 @@ async function continueQueue(s,elapsed=0){
  const batchEnd=attempted>0&&attempted%s.settings.batch===0;
  s.nextAt=Date.now()+delayMs(s.settings,attempted,elapsed);
  s.notice=batchEnd?'Pausa programada do lote. O próximo lote começa automaticamente.':'Intervalo automático entre contatos. Nenhuma ação é necessária.';
- await save(s);await chrome.alarms.create('queue',{when:s.nextAt});
+ await save(s);await openJob(s,s.nextAt);
 }
 async function retryPreparation(s,c,elapsed){
  c.preparationFailures=(c.preparationFailures||0)+1;c.safeBeforeSend=true;
@@ -35,21 +35,27 @@ async function retryPreparation(s,c,elapsed){
  }else{c.status='error';c.detail+=' • Três tentativas de preparação; contato ignorado sem enviar.';await continueQueue(s,elapsed);}
 }
 
+async function openJob(s,notBefore=0){
+ const c=s.contacts.find(c=>c.status==='pending');
+ if(!c)return;
+ c.status='preparing';s.job={id:c.id,token:crypto.randomUUID(),started:Date.now(),notBefore};
+ s.nextAt=notBefore||null;
+ if(!notBefore)s.notice='Abrindo conversa de '+(c.name||c.phone);
+ await save(s);
+ try{
+  const url='https://web.whatsapp.com/send?phone='+c.phone+(s.media?'':'&text='+encodeURIComponent(personalize(s.template,c)));
+  if(s.tabId!==null){try{await chrome.tabs.get(s.tabId);}catch{s.tabId=null;}}
+  if(s.tabId===null){const t=await chrome.tabs.create({url:'about:blank',active:true});s.tabId=t.id;await save(s);}
+  await chrome.alarms.clear('queue');
+  await chrome.alarms.create('watchdog',{when:Math.max(Date.now(),notBefore)+150000});
+  await chrome.tabs.update(s.tabId,{url,active:true});
+ }catch(e){c.status='error';c.detail=e.message;s.job=null;await pause(s,'Não foi possível abrir a conversa. '+e.message);}
+}
 async function tick(){
  await locked(async()=>{
   const s=await read();if(s.status!=='running'||s.job)return;
   if(s.nextAt>Date.now()+500){await chrome.alarms.create('queue',{when:s.nextAt});return;}
-  const c=s.contacts.find(c=>c.status==='pending');
-  if(!c){s.status='completed';s.nextAt=null;s.notice='Fila concluída. Confira os resultados por contato.';await clear();await save(s);return;}
-  c.status='preparing';s.job={id:c.id,token:crypto.randomUUID(),started:Date.now()};s.nextAt=null;s.notice='Abrindo conversa de '+(c.name||c.phone);await save(s);
-  try{
-   const url='https://web.whatsapp.com/send?phone='+c.phone+(s.media?'':'&text='+encodeURIComponent(personalize(s.template,c)));
-   if(s.tabId!==null){try{await chrome.tabs.get(s.tabId);}catch{s.tabId=null;}}
-   // New tab is initially blank; persist its ownership before navigation.
-   if(s.tabId===null){const t=await chrome.tabs.create({url:'about:blank',active:true});s.tabId=t.id;await save(s);}
-   await chrome.alarms.create('watchdog',{when:Date.now()+150000});
-   await chrome.tabs.update(s.tabId,{url,active:true});
-  }catch(e){c.status='error';c.detail=e.message;s.job=null;await pause(s,'Não foi possível abrir a conversa. '+e.message);}
+  await openJob(s);
  });
 }
 async function handle(m,sender){
@@ -65,14 +71,15 @@ async function handle(m,sender){
   const c=s.contacts.find(c=>c.id===s.job.id);
   if(m.type==='READY'){
    if(s.status!=='running'||c.status!=='preparing')throw Error('Fila pausada.');
-   c.status='sending';await save(s);return true;
+   if(Date.now()<(s.job.notBefore||0))return false;
+   c.status='sending';s.nextAt=null;s.notice='Enviando para '+(c.name||c.phone);await save(s);return true;
   }
   if(m.type==='VERIFY')return s.status==='running'&&c.status==='sending';
   if(!['submitted','uncertain','error'].includes(m.status))throw Error('Resultado inválido.');
   if(!['preparing','sending'].includes(c.status))return false;
   const safePreparationFailure=c.status==='preparing'&&m.status==='error'&&m.clicked===false&&RECOVERABLE_BEFORE_SEND.has(m.code);
   c.status=m.status;c.failureCode=m.code||null;c.detail=String(m.detail||'').slice(0,500);c.at=new Date().toISOString();
-  const elapsed=Date.now()-s.job.started;s.job=null;await chrome.alarms.clear('watchdog');
+  const elapsed=Math.max(0,Date.now()-Math.max(s.job.started,s.job.notBefore||0));s.job=null;await chrome.alarms.clear('watchdog');
   if(safePreparationFailure&&s.status==='running'){await retryPreparation(s,c,elapsed);return true;}
   if(m.status!=='submitted'){await pause(s,'Fila pausada: '+c.detail);return true;}
   await continueQueue(s,elapsed);return true;

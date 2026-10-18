@@ -10,7 +10,7 @@ async function harness(){
  return {send,read:()=>structuredClone(data),alarms,nav:()=>navigations,fire:n=>alarm({name:n}),startup:()=>startup(),removed:id=>removed(id),settle:async()=>{for(let i=0;i<15;i++)await new Promise(r=>setTimeout(r,2));},content:()=>({id:'test',url:'https://web.whatsapp.com/send?phone=5511999999999',tab:{id:7}})};
 }
 async function prepare(h){const contacts=['5511999999999','5521999999999'].map((p,i)=>({phone:p,name:'Contato '+i,fields:{}}));assert.equal((await h.send({type:'SAVE',contacts,template:'Olá {{nome}}',consent:true,settings:{min:30,max:30,batch:10,rest:30}})).ok,true);assert.equal((await h.send({type:'START'})).ok,true);await new Promise(r=>setTimeout(r,510));h.fire('queue');await h.settle();}
-test('fila persiste antes do envio; duplicação e aba incorreta são rejeitadas',async()=>{const h=await harness();await prepare(h);const s=h.read();assert.equal(s.contacts[0].status,'preparing');assert.equal(h.nav(),1);h.fire('queue');await h.settle();assert.equal(h.nav(),1);const job=(await h.send({type:'JOB'},h.content())).data;assert.ok(job.token);assert.equal((await h.send({type:'READY',token:job.token},{...h.content(),tab:{id:8}})).ok,false);assert.equal((await h.send({type:'READY',token:job.token},h.content())).ok,true);assert.equal((await h.send({type:'READY',token:job.token},h.content())).ok,false);await h.send({type:'RESULT',token:job.token,status:'submitted',detail:'observada'},h.content());assert.equal(h.read().contacts[0].status,'submitted');assert.ok(h.alarms.has('queue'));assert.equal((await h.send({type:'RESULT',token:job.token,status:'submitted'},h.content())).ok,false);});
+test('fila persiste antes do envio; duplicação e aba incorreta são rejeitadas',async()=>{const h=await harness();await prepare(h);const s=h.read();assert.equal(s.contacts[0].status,'preparing');assert.equal(h.nav(),1);h.fire('queue');await h.settle();assert.equal(h.nav(),1);const job=(await h.send({type:'JOB'},h.content())).data;assert.ok(job.token);assert.equal((await h.send({type:'READY',token:job.token},{...h.content(),tab:{id:8}})).ok,false);assert.equal((await h.send({type:'READY',token:job.token},h.content())).ok,true);assert.equal((await h.send({type:'READY',token:job.token},h.content())).ok,false);await h.send({type:'RESULT',token:job.token,status:'submitted',detail:'observada'},h.content());assert.equal(h.read().contacts[0].status,'submitted');assert.equal(h.nav(),2);assert.equal(h.read().contacts[1].status,'preparing');assert.ok(h.read().job.notBefore>Date.now());assert.equal((await h.send({type:'RESULT',token:job.token,status:'submitted'},h.content())).ok,false);});
 test('pausa na preparação invalida autorização sem perder o contato',async()=>{const h=await harness();await prepare(h);const job=h.read().job;await h.send({type:'PAUSE'});assert.equal(h.read().contacts[0].status,'pending');assert.equal(h.read().job,null);assert.equal((await h.send({type:'READY',token:job.token},h.content())).ok,false);});
 test('timeout após autorização exige revisão e não reenvia',async()=>{const h=await harness();await prepare(h);await h.send({type:'READY',token:h.read().job.token},h.content());h.fire('watchdog');await h.settle();assert.equal(h.read().status,'paused');assert.equal(h.read().contacts[0].status,'uncertain');assert.equal((await h.send({type:'START'})).ok,false);await h.send({type:'REVIEW'});assert.equal(h.read().contacts[0].status,'reviewed');assert.equal((await h.send({type:'START'})).ok,true);});
 test('reinício interrompe um envio sem repetir; fechamento de aba pausa',async()=>{const h=await harness();await prepare(h);await h.send({type:'READY',token:h.read().job.token},h.content());h.startup();await h.settle();assert.equal(h.read().contacts[0].status,'uncertain');assert.equal(h.read().status,'paused');const j=await harness();await prepare(j);j.removed(7);await j.settle();assert.equal(j.read().contacts[0].status,'pending');assert.equal(j.read().status,'paused');});
@@ -22,7 +22,7 @@ test('falhas confirmadas antes do clique têm backoff e limite; depois seguem pa
   for(let attempt=1;attempt<=3;attempt++){
    const token=h.read().job.token;
    assert.equal((await h.send({type:'RESULT',token,status:'error',code:'MEDIA_PREVIEW_TIMEOUT',clicked:false,detail:'preview not ready'},h.content())).ok,true);
-   const state=h.read();assert.equal(state.status,'running');assert.equal(state.job,null);
+   const state=h.read();assert.equal(state.status,'running');if(attempt<3)assert.equal(state.job,null);else assert.equal(state.job.id,state.contacts[1].id);
    assert.ok(state.nextAt>=clock+30000);
    assert.equal(state.contacts[0].preparationFailures,attempt);
    assert.equal(state.contacts[0].status,attempt<3?'pending':'error');
@@ -37,4 +37,23 @@ test('erro depois da autorização nunca entra em recuperação automática',asy
  await h.send({type:'READY',token},h.content());
  await h.send({type:'RESULT',token,status:'uncertain',code:'MEDIA_PREVIEW_TIMEOUT',clicked:true,detail:'unknown outcome'},h.content());
  assert.equal(h.read().status,'paused');assert.equal(h.read().contacts[0].status,'uncertain');assert.equal(h.alarms.has('queue'),false);
+});
+
+test('abre próximo contato imediatamente, bloqueia envio antecipado e autoriza após delay',async()=>{
+ const h=await harness();await prepare(h);let token=h.read().job.token;
+ await h.send({type:'READY',token},h.content());
+ await h.send({type:'RESULT',token,status:'submitted'},h.content());
+ const s=h.read();token=s.job.token;
+ assert.equal(h.nav(),2);assert.equal(s.contacts[1].status,'preparing');
+ assert.equal((await h.send({type:'READY',token},h.content())).data,false);
+ assert.equal((await h.send({type:'VERIFY',token},h.content())).data,false);
+ const now=Date.now;Date.now=()=>s.job.notBefore;
+ try{assert.equal((await h.send({type:'READY',token},h.content())).data,true);assert.equal((await h.send({type:'VERIFY',token},h.content())).data,true);}finally{Date.now=now;}
+});
+test('pausar durante delay na próxima conversa impede envio e mantém contato pendente',async()=>{
+ const h=await harness();await prepare(h);let token=h.read().job.token;
+ await h.send({type:'READY',token},h.content());await h.send({type:'RESULT',token,status:'submitted'},h.content());
+ token=h.read().job.token;await h.send({type:'PAUSE'});
+ assert.equal(h.read().contacts[1].status,'pending');assert.equal(h.read().job,null);
+ assert.equal((await h.send({type:'READY',token},h.content())).ok,false);
 });
