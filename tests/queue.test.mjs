@@ -15,3 +15,26 @@ test('pausa na preparação invalida autorização sem perder o contato',async()
 test('timeout após autorização exige revisão e não reenvia',async()=>{const h=await harness();await prepare(h);await h.send({type:'READY',token:h.read().job.token},h.content());h.fire('watchdog');await h.settle();assert.equal(h.read().status,'paused');assert.equal(h.read().contacts[0].status,'uncertain');assert.equal((await h.send({type:'START'})).ok,false);await h.send({type:'REVIEW'});assert.equal(h.read().contacts[0].status,'reviewed');assert.equal((await h.send({type:'START'})).ok,true);});
 test('reinício interrompe um envio sem repetir; fechamento de aba pausa',async()=>{const h=await harness();await prepare(h);await h.send({type:'READY',token:h.read().job.token},h.content());h.startup();await h.settle();assert.equal(h.read().contacts[0].status,'uncertain');assert.equal(h.read().status,'paused');const j=await harness();await prepare(j);j.removed(7);await j.settle();assert.equal(j.read().contacts[0].status,'pending');assert.equal(j.read().status,'paused');});
 test('origem externa não pode iniciar nem alterar a fila',async()=>{const h=await harness();assert.equal((await h.send({type:'START'},{id:'test',url:'https://evil.example'})).ok,false);assert.equal(h.read().status,'draft');});
+
+test('falhas confirmadas antes do clique têm backoff e limite; depois seguem para o próximo contato',async()=>{
+ const h=await harness();await prepare(h);const realNow=Date.now;let clock=realNow();Date.now=()=>clock;
+ try{
+  for(let attempt=1;attempt<=3;attempt++){
+   const token=h.read().job.token;
+   assert.equal((await h.send({type:'RESULT',token,status:'error',code:'MEDIA_PREVIEW_TIMEOUT',clicked:false,detail:'preview not ready'},h.content())).ok,true);
+   const state=h.read();assert.equal(state.status,'running');assert.equal(state.job,null);
+   assert.ok(state.nextAt>=clock+30000);
+   assert.equal(state.contacts[0].preparationFailures,attempt);
+   assert.equal(state.contacts[0].status,attempt<3?'pending':'error');
+   if(attempt===2)assert.ok(state.nextAt>=clock+60000);
+   clock=state.nextAt+1;h.fire('queue');await h.settle();
+  }
+  assert.equal(h.read().job.id,h.read().contacts[1].id);
+ }finally{Date.now=realNow;}
+});
+test('erro depois da autorização nunca entra em recuperação automática',async()=>{
+ const h=await harness();await prepare(h);const token=h.read().job.token;
+ await h.send({type:'READY',token},h.content());
+ await h.send({type:'RESULT',token,status:'uncertain',code:'MEDIA_PREVIEW_TIMEOUT',clicked:true,detail:'unknown outcome'},h.content());
+ assert.equal(h.read().status,'paused');assert.equal(h.read().contacts[0].status,'uncertain');assert.equal(h.alarms.has('queue'),false);
+});

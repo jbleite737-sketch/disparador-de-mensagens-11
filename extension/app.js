@@ -21,7 +21,7 @@ function render(loadInputs=false){
  $('state').textContent=states[state.status];$('notice').textContent=state.notice;
  $('progress-fill').style.width=(state.contacts.length?state.contacts.filter(c=>!['pending','preparing','sending'].includes(c.status)).length/state.contacts.length*100:0)+'%';
  const draft=state.status==='draft';$('import-controls').hidden=!draft;$('save').hidden=!draft;
- $('pause').hidden=state.status!=='running';$('start').hidden=state.status==='running'||state.status==='completed';$('start').textContent=state.status==='paused'?'Retomar fila →':'Iniciar campanha →';
+ $('pause').hidden=state.status!=='running';$('start').hidden=state.status==='running'||state.status==='completed';$('start').textContent=state.status==='paused'?'Retomar fila →':'Iniciar envio automático →';
  $('start').disabled=!state.contacts.some(c=>c.status==='pending')||!!state.job;
  $('review').hidden=!state.contacts.some(c=>c.status==='uncertain')||!!state.job;
  for(const id of ['template','min','max','batch','rest','consent'])$(id).disabled=!draft;

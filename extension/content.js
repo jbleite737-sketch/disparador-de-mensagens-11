@@ -2,10 +2,14 @@
 (async()=>{
  const rpc=async(type,extra={})=>{const r=await chrome.runtime.sendMessage({type,...extra});if(!r?.ok)throw Error(r?.error||'Extensão indisponível.');return r.data;};
  let job;try{job=await rpc('JOB');}catch{return;}if(!job)return;
- let clicked=false;
+ const dom=globalThis.ContatoWhatsAppDOM;
+ if(!dom)return;
+ // One job contains either text OR an image with its caption, never two sends.
+ if(job.message?.type==='image'){job.media=job.message.media;job.text=job.message.caption;}else if(job.message?.type==='text'){job.media=null;job.text=job.message.text;}
+ let clicked=false,previewBaseline;
+ const failure=(code,message)=>Object.assign(new Error(message),{code});
  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
- const normalize=s=>String(s||'').replace(/\r\n/g,'\n').replace(/\u00a0/g,' ').trim();
- const visible=e=>!!e&&e.getClientRects().length>0;
+ const {normalize,visible}=dom;
  function identity(main){
   const header=main.querySelector('header');if(!header)return false;
   const labels=[header.innerText,...[...header.querySelectorAll('[title]')].map(e=>e.title)];
@@ -21,45 +25,30 @@
   if(!visible(box)||!identity(main))return null;
   // Never overwrite an unrelated draft; photo captions are entered in the preview.
   if(normalize(box.innerText)!==normalize(job.media?'':job.text))return null;
-  const icon=main.querySelector('footer [data-icon="send"]');
-  const button=icon?.closest('button,[role="button"]')||main.querySelector('footer button[aria-label="Enviar"],footer button[aria-label="Send"]');
+  const button=dom.sendButtons(main.querySelector('footer')||main)[0];
   if(!job.media&&(!visible(button)||button.disabled))return null;
   return {main,box,button,header:main.querySelector('header')?.innerText};
  }
- function mediaPreview(){
-  // Restrict to an actual image preview with its own caption editor and send button.
-  for(const icon of document.querySelectorAll('[data-icon="send"]')){
-   const button=icon.closest('button,[role="button"]');if(!visible(button)||button.closest('#main footer'))continue;
-   for(let scope=button.parentElement;scope&&scope!==document.body;scope=scope.parentElement){
-    if(scope.id==='main'||scope.querySelector('#main'))break;
-    const caption=[...scope.querySelectorAll('[contenteditable="true"]')].find(e=>visible(e)&&!e.closest('#main footer'));
-    const image=[...scope.querySelectorAll('img[src^="blob:"],img[src^="data:image/"]')].find(visible);
-    if(caption&&image)return {button,caption,image,scope};
-   }
-  }
-  return null;
- }
+ function mediaPreview(){return previewBaseline?dom.preview(previewBaseline):null;}
  async function preparePhoto(view){
-  if(mediaPreview())throw Error('Existe uma prévia de mídia aberta. Feche-a antes de continuar.');
+  previewBaseline=dom.snapshot();
   const icon=view.main.querySelector('footer [data-icon="plus-rounded"],footer [data-icon="attach-menu-plus"],footer [data-icon="plus"]');
   const attach=icon?.closest('button,[role="button"]')||view.main.querySelector('footer button[aria-label="Anexar"],footer button[aria-label="Attach"]');
   if(!visible(attach))throw Error('Botão de anexar foto não encontrado. A interface pode ter mudado.');
   attach.click();
   let input;const inputDeadline=Date.now()+5000;
   while(Date.now()<inputDeadline){
-   input=[...document.querySelectorAll('input[type="file"]')].find(e=>/image\//i.test(e.accept)&&!e.disabled);
+   input=dom.photoInput();
    if(input)break;await sleep(150);
   }
-  if(!input)throw Error('Seletor de foto não encontrado. Nenhum envio foi acionado.');
+  if(!input)throw failure('MEDIA_INPUT_NOT_FOUND','Seletor de foto não encontrado. Nenhum envio foi acionado.');
   const bytes=Uint8Array.from(atob(job.media.base64),c=>c.charCodeAt(0));
   const file=new File([bytes],job.media.name,{type:job.media.type});
   const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
-  let preview;const deadline=Date.now()+20000;
+  let preview;const deadline=Date.now()+35000;
   while(Date.now()<deadline){preview=mediaPreview();if(preview)break;await sleep(250);}
-  if(!preview)throw Error('A prévia da foto não ficou pronta. Não houve clique de envio.');
-  if(normalize(preview.caption.innerText))throw Error('A prévia já tem uma legenda. Confira a conversa antes de retomar.');
-  if(job.text){preview.caption.focus();if(!document.execCommand('insertText',false,job.text))throw Error('Não foi possível preencher a legenda.');await sleep(250);}
-  if(normalize(preview.caption.innerText)!==normalize(job.text))throw Error('A legenda não corresponde ao texto personalizado.');
+  if(!preview)throw failure('MEDIA_PREVIEW_TIMEOUT','A prévia da foto não ficou pronta. Nenhum envio acionado. '+dom.diagnostics(previewBaseline));
+  await dom.setCaption(preview.caption,job.text);
   return preview;
  }
  try{
@@ -69,10 +58,10 @@
   let preview;if(job.media)preview=await preparePhoto(view);
   await rpc('READY',{token:job.token});
   if(!await rpc('VERIFY',{token:job.token}))throw Error('Fila pausada antes do envio.');
-  if(!view.main.isConnected||!identity(view.main)||view.main.querySelector('header')?.innerText!==view.header)throw Error('A conversa mudou antes do envio.');
+  if(!view.main.isConnected||!identity(view.main))throw Error('A conversa mudou antes do envio.');
   let button;
   if(job.media){
-   const current=mediaPreview();if(!current||current.button!==preview.button||current.image!==preview.image||normalize(current.caption.innerText)!==normalize(job.text))throw Error('A foto ou a legenda mudou antes do envio.');
+   const current=mediaPreview();if(!current||current.button!==preview.button||current.image!==preview.image||dom.text(current.caption)!==normalize(job.text))throw Error('A foto ou a legenda mudou antes do envio.');
    button=current.button;
   }else{
    const current=surface();if(!current||current.main!==view.main||current.box!==view.box)throw Error('A conversa mudou antes do envio.');button=current.button;
@@ -81,8 +70,8 @@
   clicked=true;button.click();
   const end=Date.now()+20000;
   while(Date.now()<end){
-   if(!view.main.isConnected||view.main.querySelector('header')?.innerText!==view.header)throw Error('Conversa alterada após o clique. Confira o envio manualmente.');
-   const bubble=[...view.main.querySelectorAll('.message-out')].find(e=>!prior.has(e)&&normalize(e.innerText).includes(normalize(job.text))&&(!job.media||[...e.querySelectorAll('img,video')].some(image=>{const r=image.getBoundingClientRect();return r.width>=64&&r.height>=64;})));
+   if(!view.main.isConnected||!identity(view.main))throw Error('Conversa alterada após o clique. Confira o envio manualmente.');
+   const bubble=[...view.main.querySelectorAll('.message-out')].find(e=>!prior.has(e)&&dom.text(e).includes(normalize(job.text))&&(!job.media||[...e.querySelectorAll('img,video')].some(image=>{const r=image.getBoundingClientRect();return r.width>=64&&r.height>=64;})));
    const cleared=job.media?!preview.button.isConnected||!visible(preview.button):!normalize(view.box.innerText);
    if(bubble&&cleared){
     await rpc('RESULT',{token:job.token,status:'submitted',detail:job.media?'Nova mensagem com foto e legenda observada. Não confirma entrega nem leitura.':'Nova mensagem de saída observada na conversa. Não confirma entrega nem leitura.'});return;
@@ -90,5 +79,5 @@
    await sleep(300);
   }
   throw Error('Clique realizado, mas sem confirmação visual inequívoca. Não será repetido automaticamente.');
- }catch(e){try{await rpc('RESULT',{token:job.token,status:clicked?'uncertain':'error',detail:e.message});}catch{/* An old, cancelled job cannot change the current campaign. */}}
+ }catch(e){try{await rpc('RESULT',{token:job.token,status:clicked?'uncertain':'error',clicked,code:e.code||'ADAPTER_ERROR',detail:e.message});}catch{/* An old, cancelled job cannot change the current campaign. */}}
 })();

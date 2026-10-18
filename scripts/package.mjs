@@ -10,5 +10,5 @@ for(const [name,zip] of [['Contato-Flow-Chrome.zip',product],['Contato-Flow-Codi
  // Validate archive integrity and the installed root, not just ZIP creation.
  const loaded=await JSZip.loadAsync(bytes,{checkCRC32:true});const root=name.includes('Codigo')?'Contato-Flow-Fonte/extension/':'Contato-Flow-Chrome/';const manifest=JSON.parse(await loaded.file(root+'manifest.json').async('string'));
  if(manifest.manifest_version!==3||!loaded.file(root+manifest.background.service_worker))throw Error('Pacote inválido');
- for(const path of ['app.html','app.js','core.js','content.js','media.js','vendor/exceljs.min.js',...Object.values(manifest.icons)])if(!loaded.file(root+path))throw Error('Arquivo ausente: '+path);
+ for(const path of ['app.html','app.js','core.js','whatsapp-dom.js','content.js','media.js','vendor/exceljs.min.js',...Object.values(manifest.icons)])if(!loaded.file(root+path))throw Error('Arquivo ausente: '+path);
 }

@@ -44,3 +44,12 @@ A recuperação usa `chrome.storage.local` e `chrome.alarms`. Reiniciar o Chrome
 - Esta versão envia texto e uma foto por campanha, não inclui vídeos, áudios, PDFs ou galerias; não inclui IA, geração de imagens, envio por email/SMS ou agendamento por data. “Outros meios de contato” foi implementado como outras formas de importar contatos: CSV, células do Excel e lista colada.
 - XLS antigo deve ser convertido para XLSX ou CSV. Até 5 MB, 100 colunas e 5.000 contatos por importação. Não abra planilhas de origem desconhecida.
 - A extensão é entregue para instalação local; não foi publicada na Chrome Web Store.
+
+
+## Correção 1.1: mídia e execução automática
+
+O relato de teste real apontou a mensagem de timeout da prévia. A inspeção confirmou que a implementação 1.0 ignorava canvas, fundos CSS, botões com ícones novos e prévias dentro de `#main/footer`. As imagens enviadas pelo usuário mostram a prévia do painel e a fila pausada, não a estrutura DOM do WhatsApp; portanto não comprovam qual dessas variações estava presente na conta real.
+
+O novo adaptador reconhece essas variantes, compara a interface anterior e posterior à seleção do arquivo e rejeita prévias ambíguas. A operação da fila contém `media` e `caption` juntos e só aciona o envio da mídia. Falhas de preparação identificadas antes de qualquer autorização de envio recebem até três tentativas, com backoff e sem reduzir o delay configurado; ao esgotar as tentativas, o contato fica com erro e a fila segue. Resultados incertos após envio continuam exigindo revisão para não duplicar mensagens.
+
+Os testes reproduzem variações da interface de forma controlada. A confirmação do conserto na versão exata do WhatsApp da conta do usuário continua dependendo de novo teste real.

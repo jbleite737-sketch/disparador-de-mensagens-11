@@ -8,6 +8,33 @@ const clear=async()=>{await chrome.alarms.clear('queue');await chrome.alarms.cle
 const pause=async(s,note)=>{s.status='paused';s.nextAt=null;s.notice=note;await clear();await save(s);};
 function own(sender){return sender.id===chrome.runtime.id && sender.url?.startsWith(chrome.runtime.getURL('app.html'));}
 function jobOwn(s,sender,m){return sender.tab?.id===s.tabId && sender.url?.startsWith('https://web.whatsapp.com/') && s.job?.token===m.token;}
+
+const RECOVERABLE_BEFORE_SEND = new Set(['MEDIA_INPUT_NOT_FOUND','MEDIA_PREVIEW_TIMEOUT']);
+async function continueQueue(s,elapsed=0){
+ if(s.status!=='running'){await save(s);return;}
+ if(!s.contacts.some(c=>c.status==='pending')){
+  s.status='completed';s.nextAt=null;
+  const failures=s.contacts.filter(c=>c.status==='error').length;
+  s.notice=`Fila concluída automaticamente. ${failures} contato(s) com erro. “Submetida” não confirma entrega ou leitura.`;
+  await clear();await save(s);return;
+ }
+ const attempted=s.contacts.filter(c=>['submitted','error','reviewed'].includes(c.status)).length;
+ const batchEnd=attempted>0&&attempted%s.settings.batch===0;
+ s.nextAt=Date.now()+delayMs(s.settings,attempted,elapsed);
+ s.notice=batchEnd?'Pausa programada do lote. O próximo lote começa automaticamente.':'Intervalo automático entre contatos. Nenhuma ação é necessária.';
+ await save(s);await chrome.alarms.create('queue',{when:s.nextAt});
+}
+async function retryPreparation(s,c,elapsed){
+ c.preparationFailures=(c.preparationFailures||0)+1;c.safeBeforeSend=true;
+ if(c.preparationFailures<3){
+  c.status='pending';
+  // Backoff honors the configured interval, even when it is longer than two minutes.
+  const delay=Math.max(delayMs(s.settings,0,elapsed),Math.min(120000,s.settings.min*1000*2**(c.preparationFailures-1)));
+  s.nextAt=Date.now()+delay;s.notice=`Preparação da foto falhou sem enviar. Nova tentativa automática ${c.preparationFailures+1}/3 após o intervalo.`;
+  await save(s);await chrome.alarms.create('queue',{when:s.nextAt});
+ }else{c.status='error';c.detail+=' • Três tentativas de preparação; contato ignorado sem enviar.';await continueQueue(s,elapsed);}
+}
+
 async function tick(){
  await locked(async()=>{
   const s=await read();if(s.status!=='running'||s.job)return;
@@ -20,7 +47,7 @@ async function tick(){
    if(s.tabId!==null){try{await chrome.tabs.get(s.tabId);}catch{s.tabId=null;}}
    // New tab is initially blank; persist its ownership before navigation.
    if(s.tabId===null){const t=await chrome.tabs.create({url:'about:blank',active:true});s.tabId=t.id;await save(s);}
-   await chrome.alarms.create('watchdog',{when:Date.now()+120000});
+   await chrome.alarms.create('watchdog',{when:Date.now()+150000});
    await chrome.tabs.update(s.tabId,{url,active:true});
   }catch(e){c.status='error';c.detail=e.message;s.job=null;await pause(s,'Não foi possível abrir a conversa. '+e.message);}
  });
@@ -29,7 +56,9 @@ async function handle(m,sender){
  if(m.type==='JOB')return locked(async()=>{
   const s=await read();if(sender.tab?.id!==s.tabId||s.status!=='running'||!s.job||!sender.url?.startsWith('https://web.whatsapp.com/'))return null;
   const c=s.contacts.find(c=>c.id===s.job.id);if(c.status!=='preparing')return null;
-  return {...s.job,phone:c.phone,text:personalize(s.template,c,!!s.media,s.media?1024:4000),media:await mediaPayload(s.media)};
+  const text=personalize(s.template,c,!!s.media,s.media?1024:4000);
+  const message=s.media?{type:'image',media:await mediaPayload(s.media),caption:text}:{type:'text',text};
+  return {...s.job,phone:c.phone,message};
  });
  if(['READY','VERIFY','RESULT'].includes(m.type))return locked(async()=>{
   const s=await read();if(!jobOwn(s,sender,m))throw Error('Operação antiga ou aba incorreta.');
@@ -41,14 +70,12 @@ async function handle(m,sender){
   if(m.type==='VERIFY')return s.status==='running'&&c.status==='sending';
   if(!['submitted','uncertain','error'].includes(m.status))throw Error('Resultado inválido.');
   if(!['preparing','sending'].includes(c.status))return false;
-  c.status=m.status;c.detail=String(m.detail||'').slice(0,500);c.at=new Date().toISOString();
+  const safePreparationFailure=c.status==='preparing'&&m.status==='error'&&m.clicked===false&&RECOVERABLE_BEFORE_SEND.has(m.code);
+  c.status=m.status;c.failureCode=m.code||null;c.detail=String(m.detail||'').slice(0,500);c.at=new Date().toISOString();
   const elapsed=Date.now()-s.job.started;s.job=null;await chrome.alarms.clear('watchdog');
+  if(safePreparationFailure&&s.status==='running'){await retryPreparation(s,c,elapsed);return true;}
   if(m.status!=='submitted'){await pause(s,'Fila pausada: '+c.detail);return true;}
-  if(s.status!=='running'){await save(s);return true;}
-  if(!s.contacts.some(c=>c.status==='pending')){s.status='completed';s.notice='Fila concluída. “Submetida” não confirma entrega ou leitura.';s.nextAt=null;await save(s);return true;}
-  const sent=s.contacts.filter(c=>c.status==='submitted').length;
-  s.nextAt=Date.now()+delayMs(s.settings,sent,elapsed);s.notice='Intervalo entre contatos. Aguarde ou pause a fila.';
-  await save(s);await chrome.alarms.create('queue',{when:s.nextAt});return true;
+  await continueQueue(s,elapsed);return true;
  });
  if(!own(sender))throw Error('Página não autorizada.');
  return locked(async()=>{
