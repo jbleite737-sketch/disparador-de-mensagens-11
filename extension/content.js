@@ -42,7 +42,7 @@
   let preview;const deadline=Date.now()+35000;
   while(Date.now()<deadline){preview=mediaPreview();if(preview)break;await sleep(250);}
   if(!preview)throw failure('MEDIA_PREVIEW_TIMEOUT','A prévia da foto não ficou pronta. Nenhum envio acionado. '+dom.diagnostics(previewBaseline));
-  await dom.setCaption(preview.caption,job.text);
+  await dom.setCaption(preview.caption,job.text,()=>mediaPreview()?.caption);
   return preview;
  }
  try{
@@ -57,7 +57,7 @@
   if(!view.main.isConnected||!identity(view.main))throw Error('A conversa mudou antes do envio.');
   let button;
   if(job.media){
-   const current=mediaPreview();if(!current||dom.signature(current.image)!==dom.signature(preview.image)||dom.text(current.caption)!==normalize(job.text))throw Error('A foto ou a legenda mudou antes do envio.');
+   const current=mediaPreview();if(!current||dom.signature(current.image)!==dom.signature(preview.image)||!dom.captionMatches(current.caption,job.text))throw Error('A foto ou a legenda mudou antes do envio.');
    preview=current;button=current.button;
   }else{
    const current=surface();if(!current||current.main!==view.main||current.box!==view.box)throw Error('A conversa mudou antes do envio.');button=current.button;
@@ -67,7 +67,7 @@
   const end=Date.now()+20000;
   while(Date.now()<end){
    if(!view.main.isConnected||!identity(view.main))throw Error('Conversa alterada após o clique. Confira o envio manualmente.');
-   const bubble=[...view.main.querySelectorAll('.message-out')].find(e=>!prior.has(e)&&dom.text(e).includes(normalize(job.text))&&(!job.media||[...e.querySelectorAll('img,video')].some(image=>{const r=image.getBoundingClientRect();return r.width>=64&&r.height>=64;})));
+   const bubble=[...view.main.querySelectorAll('.message-out')].find(e=>!prior.has(e)&&dom.comparable(dom.text(e)).includes(dom.comparable(job.text))&&(!job.media||[...e.querySelectorAll('img,video')].some(image=>{const r=image.getBoundingClientRect();return r.width>=64&&r.height>=64;})));
    const cleared=job.media?!preview.button.isConnected||!visible(preview.button):!normalize(view.box.innerText);
    if(bubble&&cleared){
     await rpc('RESULT',{token:job.token,status:'submitted',detail:job.media?'Nova mensagem com foto e legenda observada. Não confirma entrega nem leitura.':'Nova mensagem de saída observada na conversa. Não confirma entrega nem leitura.'});return;

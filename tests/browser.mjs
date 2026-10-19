@@ -10,7 +10,7 @@ const contentSource=(await readFile('extension/whatsapp-dom.js','utf8'))+'\n'+(a
 globalThis.chrome={runtime:{id:'test',getURL:p=>base+p,onMessage:{addListener:f=>receiver=f},onStartup:{addListener:()=>{}}},storage:{local:{get:async()=>structuredClone(data),set:async v=>{const old=data;data={...data,...structuredClone(v)};for(const p of context.pages())if(p.url().startsWith(base))await p.evaluate(change=>window.__storageChange?.(change),{campaign:{oldValue:old.campaign,newValue:data.campaign}}).catch(()=>{});}}},action:{onClicked:{addListener:()=>{}}},alarms:{create:async(n,a)=>{clearTimeout(timers.get(n));const ms=Math.max(0,a.when-Date.now());timers.set(n,setTimeout(()=>onAlarm({name:n}),ms));},clear:async n=>{clearTimeout(timers.get(n));timers.delete(n);},onAlarm:{addListener:f=>onAlarm=f}},tabs:{get:async id=>{if(!tabs.has(id))throw Error('no tab');return{id};},create:async({url})=>{const page=await context.newPage();const id=nextId++;tabs.set(id,page);page.on('close',()=>{tabs.delete(id);removed?.(id);});await page.goto(url);return{id};},update:async(id,{url})=>{const p=tabs.get(id);await p.goto(url);await p.addScriptTag({content:contentSource});return{id};},onRemoved:{addListener:f=>removed=f}}};
 await import('../extension/background.js?browser');
 await context.exposeBinding('extensionRPC',async({page},m)=>{
- if(m.type==='RESULT'&&m.status==='submitted'&&data.campaign.media){mediaResults.push(await page.evaluate(()=>({at:Date.now(),clicks:window.mediaClicks,pastes:window.pasteCount,name:window.uploadedName,caption:document.querySelector('.message-out').innerText.trim(),images:document.querySelectorAll('.message-out img').length})));}
+ if(m.type==='RESULT'&&m.status==='submitted'&&data.campaign.media){mediaResults.push(await page.evaluate(()=>({at:Date.now(),clicks:window.mediaClicks,inputs:window.inputCount,pastes:window.pasteCount,name:window.uploadedName,caption:document.querySelector('.message-out').innerText.trim(),images:document.querySelectorAll('.message-out img').length})));}
  if(m.type==='SAVE'&&m.media){
   const bytes=await page.evaluate(async id=>{const {readAsset}=await import('/media.js');return [...new Uint8Array(await (await readAsset(id)).arrayBuffer())];},m.media.id);
   await new Promise((resolve,reject)=>{const r=indexedDB.open('contato-flow-media',1);r.onupgradeneeded=()=>r.result.createObjectStore('photos');r.onsuccess=()=>{const db=r.result,tx=db.transaction('photos','readwrite');tx.objectStore('photos').put(new File([new Uint8Array(bytes)],m.media.name,{type:m.media.type}),m.media.id);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);};});
@@ -52,9 +52,17 @@ try{
     const file=e.clipboardData.files[0];window.uploadedName=file.name;window.uploadedSize=file.size;
     const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" role="textbox" style="min-height:30px"></div><div role="button" aria-label="Enviar"><span data-icon="wds-ic-send-filled">Enviar foto</span></div>';
     const imageURL=URL.createObjectURL(file);const previewImage=new Image();previewImage.onload=()=>dialog.querySelector('canvas').getContext('2d').drawImage(previewImage,0,0,180,160);previewImage.src=imageURL;document.querySelector('#main footer').append(dialog);
-    dialog.querySelector('[contenteditable]').addEventListener('input',()=>{const old=dialog.querySelector('[role=button]');const replacement=old.cloneNode(true);old.replaceWith(replacement);window.buttonReplaced=true;},{once:true});
+    dialog.querySelector('[contenteditable]').addEventListener('input',event=>{
+     window.inputCount=(window.inputCount||0)+1;window.captionModel=event.target.innerText;
+     const editor=event.target.cloneNode(false);
+     window.captionModel.split('\\n').forEach((line,index)=>{const row=index?document.createElement('div'):editor;
+      line.split('🚨').forEach((part,i)=>{if(i){const emoji=document.createElement('img');emoji.alt='🚨';emoji.setAttribute('aria-hidden','true');row.append(emoji);}row.append(document.createTextNode(part));});
+      if(!line)row.append(document.createElement('br'));if(index)editor.append(row);
+     });event.target.replaceWith(editor);
+     const old=dialog.querySelector('[role=button]');const replacement=old.cloneNode(true);old.replaceWith(replacement);window.buttonReplaced=true;
+    },{once:true});
     dialog.addEventListener('click',event=>{if(!event.target.closest('[role=button]'))return;send();});
-    const send=()=>{window.mediaClicks=(window.mediaClicks||0)+1;const bubble=document.createElement('div');bubble.className='message-out';bubble.style.whiteSpace='pre-wrap';const image=document.createElement('img');image.src=imageURL;bubble.append(image,document.createTextNode(dialog.querySelector('[contenteditable]').innerText));document.querySelector('#history').append(bubble);dialog.remove();};
+    const send=()=>{window.mediaClicks=(window.mediaClicks||0)+1;const bubble=document.createElement('div');bubble.className='message-out';bubble.style.whiteSpace='pre-wrap';const image=document.createElement('img');image.src=imageURL;bubble.append(image,document.createTextNode(window.captionModel));document.querySelector('#history').append(bubble);dialog.remove();};
    };
   </script>`});
  });
@@ -67,7 +75,7 @@ try{
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'artifacts/interface.png',fullPage:true});
  await page.locator('#start').click();await page.locator('#accept-confirm').click();await page.waitForFunction(()=>document.querySelector('#submitted').textContent==='1',{},{timeout:15000});
  const photoTab=tabs.get(data.campaign.tabId);
- assert.equal(mediaResults[0].clicks,1);assert.equal(mediaResults[0].pastes,1);assert.equal(mediaResults[0].name,'128.png');assert.equal(mediaResults[0].caption,mediaJobs[0].message.caption);assert.equal(mediaResults[0].images,1);pass('Foto e legenda enviadas automaticamente mesmo com botão recriado após digitar');
+ assert.equal(mediaResults[0].clicks,1);assert.equal(mediaResults[0].inputs,1);assert.equal(mediaResults[0].pastes,1);assert.equal(mediaResults[0].name,'128.png');assert.equal(mediaResults[0].caption,mediaJobs[0].message.caption);assert.equal(mediaResults[0].images,1);pass('Foto e legenda com emoji-imagem, editor e botão recriados: input único e envio automático');
  assert.equal(mediaJobs[0].message.type,'image');assert.equal(typeof mediaJobs[0].message.media.base64,'string');assert.equal(Object.hasOwn(mediaJobs[0].message,'text'),false);
  assert.match(await page.locator('#notice').textContent(),/próximo lote começa automaticamente/);
  await page.waitForFunction(()=>document.querySelector('#submitted').textContent==='1');

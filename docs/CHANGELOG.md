@@ -1,3 +1,12 @@
+# 1.4.0
+
+- Corrigida leitura de emojis como imagens em legendas com linhas mistas (`texto<div>linha</div>`), linhas vazias, links e parágrafos.
+- Comparação tolera apenas normalização Unicode e apresentação de emoji, preservando texto, URLs e quebras de linha.
+- Preenchimento mantém input nativo e emite evento de apoio somente se necessário; confere o editor conectado após atualização da interface.
+- Suporte a marcador de envio sem ancestral button/role, limitado à prévia de mídia selecionada.
+- Diagnóstico de divergência com comprimentos e primeira posição diferente; sem enviar texto incorreto nem registrar conteúdo no diagnóstico.
+- Regressão integrada com emoji-imagem, editor/botão recriados, envio automático único e próximo contato após delay.
+
 # 1.3.0
 
 - Corrigida interrupção antes do clique quando o botão ou a imagem são recriados durante a edição da legenda; os elementos atuais são localizados novamente e conferidos.

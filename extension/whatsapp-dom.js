@@ -7,21 +7,41 @@
   };
   const editorSelector = '[contenteditable="true"],textarea';
   const normalize = value => String(value || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').replace(/[\u200b\u200e\u200f]/g, '').trim();
-  const text = element => {
-    if (element instanceof HTMLTextAreaElement) return normalize(element.value);
-    // WhatsApp may render emoji as images instead of literal text nodes.
-    const copy = element.cloneNode(true);
-    for (const image of copy.querySelectorAll('img[alt]')) image.replaceWith(document.createTextNode(image.alt));
-    for (const br of copy.querySelectorAll('br')) br.replaceWith(document.createTextNode('\n'));
-    // innerText of the actual node preserves contenteditable block line breaks.
-    if (!element.querySelector('img[alt]')) return normalize(element.innerText);
-    for (const block of copy.querySelectorAll('div,p')) block.append(document.createTextNode('\n'));
-    return normalize(copy.textContent);
-  };
+  // Read editable structure rather than appending a newline to every nested block.
+  // In Chromium, inserted multiline text often becomes: first line<div>next line</div>.
+  const blockTags = new Set(['DIV','P','LI','UL','OL','BLOCKQUOTE']);
+  function readNodes(element) {
+    let result='', previousBlock=false, seen=false;
+    const children=[...element.childNodes];
+    for (let index=0;index<children.length;index++) {
+      const node=children[index];
+      if(node.nodeType===Node.TEXT_NODE){
+        if(!node.nodeValue)continue;
+        if(previousBlock)result+='\n';
+        result+=node.nodeValue;previousBlock=false;seen=true;continue;
+      }
+      if(node.nodeType!==Node.ELEMENT_NODE)continue;
+      if(node.matches('script,style'))continue;
+      const block=blockTags.has(node.tagName);
+      if(seen&&(block||previousBlock))result+='\n';
+      if(node.tagName==='IMG')result+=node.getAttribute('data-plain-text')||node.getAttribute('alt')||'';
+      else if(node.tagName==='BR'){
+        // A final BR inside a block is the editor's empty-line/caret placeholder.
+        if(index!==children.length-1||!blockTags.has(element.tagName))result+='\n';
+      }else result+=readNodes(node);
+      previousBlock=block;seen=true;
+    }
+    return result;
+  }
+  const text = element => normalize(element instanceof HTMLTextAreaElement?element.value:readNodes(element));
+  // Emoji presentation selectors may be omitted by WhatsApp's emoji renderer.
+  // Preserve line breaks, URLs, ZWJ sequences, skin tones and actual content.
+  const comparable = value => normalize(value).normalize('NFC').replace(/[\ufe0e\ufe0f]/g,'');
+  const captionMatches = (element,caption) => comparable(text(element))===comparable(caption);
   function sendButtons(root = document) {
     const candidates = new Set();
     for (const icon of root.querySelectorAll('[data-icon="send"],[data-icon="wds-ic-send-filled"],[data-icon="send-filled"],[data-icon="send-alt"],[data-testid="send"]')) {
-      const button = icon.closest('button,[role="button"]');
+      const button = icon.closest('button,[role="button"],[data-testid="send"]') || icon;
       if (button) candidates.add(button);
     }
     for (const button of root.querySelectorAll('button[aria-label],[role="button"][aria-label],button[title],[role="button"][title]')) {
@@ -71,7 +91,7 @@
       .filter(e => !e.disabled && !e.hasAttribute('capture') && /image\//i.test(e.accept))
       .sort((a, b) => Number(/video\//i.test(b.accept)) - Number(/video\//i.test(a.accept)))[0];
   }
-  async function setCaption(editor, caption) {
+  async function setCaption(editor, caption, resolveEditor = () => editor) {
     if (text(editor)) throw Error('A prévia já tem uma legenda. Confira a conversa antes de retomar.');
     if (caption) {
       editor.focus();
@@ -81,14 +101,28 @@
       } else {
         const range = document.createRange();range.selectNodeContents(editor);
         const selection = getSelection();selection.removeAllRanges();selection.addRange(range);
-        if (!document.execCommand('insertText', false, caption)) throw Error('Não foi possível preencher a legenda.');
+        // execCommand normally emits input itself. Supply it only if the browser did not.
+        let inputObserved=false;
+        const observe=()=>{inputObserved=true;};editor.addEventListener('input',observe,{capture:true});
+        let inserted;
+        try{inserted=document.execCommand('insertText', false, caption);}finally{editor.removeEventListener('input',observe,{capture:true});}
+        if(!inserted)throw Error('Não foi possível preencher a legenda.');
+        if(!inputObserved)editor.dispatchEvent(new InputEvent('input',{bubbles:true,composed:true,inputType:'insertText',data:caption}));
       }
-      await new Promise(resolve => setTimeout(resolve, 350));
     }
-    if (text(editor) !== normalize(caption)) throw Error('A legenda não corresponde ao texto personalizado.');
+    // Re-query after React/Lexical rendering; never validate a detached, stale editor.
+    const deadline=Date.now()+3000,readyAfter=Date.now()+350;let current;
+    do{
+      await new Promise(resolve=>setTimeout(resolve,150));
+      current=resolveEditor();
+      if(Date.now()>=readyAfter&&current?.isConnected&&captionMatches(current,caption))return current;
+    }while(Date.now()<deadline);
+    const actual=current?comparable(text(current)):'';const expected=comparable(caption);
+    let index=0;while(index<Math.min(actual.length,expected.length)&&actual[index]===expected[index])index++;
+    throw Object.assign(Error(`A legenda não corresponde ao texto personalizado. Esperado: ${expected.length} caracteres; lido: ${actual.length}; primeira diferença: ${index}. Nenhum envio acionado.`),{code:'CAPTION_MISMATCH'});
   }
   function diagnostics(before) {
     return `editores novos=${[...document.querySelectorAll(editorSelector)].filter(e => visible(e) && !before.editors.has(e)).length}; prévias visuais=${mediaNodes().filter(e => !before.media.has(e)).length}; botões de envio=${sendButtons().length}`;
   }
-  globalThis.ContatoWhatsAppDOM = {visible, normalize, text, sendButtons, mediaNodes, snapshot, preview, photoInput, setCaption, diagnostics, signature};
+  globalThis.ContatoWhatsAppDOM = {visible, normalize, text, sendButtons, mediaNodes, snapshot, preview, photoInput, setCaption, diagnostics, signature, comparable, captionMatches};
 })();

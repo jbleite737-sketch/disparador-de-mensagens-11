@@ -1,8 +1,8 @@
-# Validação da versão 1.3.0
+# Validação da versão 1.4.0
 
 - `npm test`: 18 testes passaram, zero falhas. Abrangem CSV/telefones, personalização, limites, exportação, persistência de mídia, rejeição de formatos, tokens da fila, pausa, reinício e resultados incertos.
 - `npm run test:browser`: 16 verificações passaram no Chromium. Incluem XLSX real, deduplicação, campos personalizados, rascunho, fluxo de texto, pausa, relatório, destinatário incorreto, lista colada, renderização sem execução de HTML, foto persistida, foto + legenda em um único clique, ausência de exceções e layout estreito.
-- `npm run test:dom`: 7 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto e rejeição de prévias ambíguas.
+- `npm run test:dom`: 14 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, comparação de conteúdo, editor recriado sem texto e evento input de apoio.
 - A página de teste usa a política `script-src 'self'; object-src 'none'`, equivalente à restrição de scripts do manifesto. ExcelJS funciona como biblioteca local, sem CDN.
 - `npm run package`: ZIPs gerados e reabertos com validação de CRC e verificação dos arquivos obrigatórios do manifesto.
 - Teste de dois lotes consecutivos: intervalo mínimo/máximo de 30 segundos, um contato por lote e pausa de 30 segundos. A próxima conversa abriu em menos de 10 segundos, sem clique antecipado; o segundo envio ocorreu automaticamente após pelo menos 60 segundos de relógio real; cada contato recebeu uma operação com arquivo e legenda juntos, sem envio de texto separado.
@@ -21,3 +21,9 @@ A falha real relatada pelo usuário na 1.0 foi usada para revisar os seletores, 
 Na versão 1.2, o teste de navegador recebe o arquivo via evento `paste`, confere uma colagem e um clique de envio, a legenda final e a continuidade sem intervenção. O receptor de colagem é simulado: a aceitação de ClipboardEvent sintético pelo WhatsApp real permanece não validada.
 
 A regressão da versão 1.3 recria o botão após o evento de digitação da legenda. O teste exige clique automático único no botão atual. Também verifica o horário mínimo no worker e a invalidação da autorização quando o usuário pausa na próxima conversa. A captura do usuário não fornece o DOM real; essa correção resolve uma condição reproduzida nos testes, mas não confirma a causa exata na conta do usuário.
+
+## Regressão da legenda na versão 1.4
+
+Antes da correção, o novo teste falhou: `🚨 Oferta\nPreço R$ 17,32\n\nhttps://example.com` foi lido como `🚨 OfertaPreço R$ 17,32\n\n\nhttps://example.com`. O leitor anterior perdia a separação antes do primeiro bloco e acrescentava quebras extras. Após a correção, esse caso passou.
+
+O teste integrado converte o emoji em imagem com `alt`, recria o editor e o botão após input, e exige uma notificação de input, um clique de envio e legenda final correspondente. Verifica a continuidade após 60 segundos de intervalo real. Testes negativos confirmam que texto descartado pelo editor e URLs ou sequências de emojis diferentes continuam rejeitados. Esses cenários reproduzem uma falha do código; não constituem inspeção do DOM da conta real do usuário.
