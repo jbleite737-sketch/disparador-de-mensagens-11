@@ -37,7 +37,8 @@
   // Emoji presentation selectors may be omitted by WhatsApp's emoji renderer.
   // Preserve line breaks, URLs, ZWJ sequences, skin tones and actual content.
   const comparable = value => normalize(value).normalize('NFC').replace(/[\ufe0e\ufe0f]/g,'');
-  const captionMatches = (element,caption) => comparable(text(element))===comparable(caption);
+  // Requested policy: nonempty caption is sufficient; photo-only jobs stay supported.
+  const captionReady = (element,caption) => normalize(caption)?text(element).length>0:text(element).length===0;
   function sendButtons(root = document) {
     const candidates = new Set();
     for (const icon of root.querySelectorAll('[data-icon="send"],[data-icon="wds-ic-send-filled"],[data-icon="send-filled"],[data-icon="send-alt"],[data-testid="send"]')) {
@@ -115,14 +116,12 @@
     do{
       await new Promise(resolve=>setTimeout(resolve,150));
       current=resolveEditor();
-      if(Date.now()>=readyAfter&&current?.isConnected&&captionMatches(current,caption))return current;
+      if(Date.now()>=readyAfter&&current?.isConnected&&captionReady(current,caption))return current;
     }while(Date.now()<deadline);
-    const actual=current?comparable(text(current)):'';const expected=comparable(caption);
-    let index=0;while(index<Math.min(actual.length,expected.length)&&actual[index]===expected[index])index++;
-    throw Object.assign(Error(`A legenda não corresponde ao texto personalizado. Esperado: ${expected.length} caracteres; lido: ${actual.length}; primeira diferença: ${index}. Nenhum envio acionado.`),{code:'CAPTION_MISMATCH'});
+    throw Object.assign(Error('A caixa de legenda está vazia ou indisponível. Nenhum envio acionado.'),{code:'CAPTION_EMPTY'});
   }
   function diagnostics(before) {
     return `editores novos=${[...document.querySelectorAll(editorSelector)].filter(e => visible(e) && !before.editors.has(e)).length}; prévias visuais=${mediaNodes().filter(e => !before.media.has(e)).length}; botões de envio=${sendButtons().length}`;
   }
-  globalThis.ContatoWhatsAppDOM = {visible, normalize, text, sendButtons, mediaNodes, snapshot, preview, photoInput, setCaption, diagnostics, signature, comparable, captionMatches};
+  globalThis.ContatoWhatsAppDOM = {visible, normalize, text, sendButtons, mediaNodes, snapshot, preview, photoInput, setCaption, diagnostics, signature, comparable, captionReady};
 })();

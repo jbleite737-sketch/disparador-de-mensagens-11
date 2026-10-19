@@ -42,19 +42,22 @@ try {
   assert.equal(await page.evaluate(()=>ContatoWhatsAppDOM.text(document.querySelector('#caption'))),expected);
   passed++;console.log('PASS emoji images + structural line breaks');
  }
- // Presentation differences are tolerated; missing text, emoji and links are not.
+ // Requested policy accepts different nonempty content; empty captions are blocked.
  await page.setContent('<div id="caption" contenteditable="true"></div><div id="action" data-testid="send"><span data-icon="send">Enviar</span></div>');
  await page.addScriptTag({content:source});
  assert.deepEqual(await page.evaluate(()=>ContatoWhatsAppDOM.sendButtons().map(e=>e.id)),['action']);passed++;console.log('PASS data-testid send without a role wrapper');
  await page.locator('#caption').fill('☀ Oferta 👩‍💻\nhttps://example.com/item');
- assert.equal(await page.evaluate(()=>ContatoWhatsAppDOM.captionMatches(document.querySelector('#caption'),'☀️ Oferta 👩‍💻\nhttps://example.com/item')),true);
- for(const wrong of ['☀ Oferta 👩💻\nhttps://example.com/item','☀ Oferta 👩‍💻\nhttps://example.com/other','☀ Oferta','☀ Oferta 👩‍💻 https://example.com/item'])assert.equal(await page.evaluate(wrong=>ContatoWhatsAppDOM.captionMatches(document.querySelector('#caption'),wrong),wrong),false);
- passed++;console.log('PASS exact caption comparison preserves URLs, lines and emoji sequences');
+ assert.equal(await page.evaluate(()=>ContatoWhatsAppDOM.captionReady(document.querySelector('#caption'),'☀️ Oferta 👩‍💻\nhttps://example.com/item')),true);
+ for(const wrong of ['☀ Oferta 👩💻\nhttps://example.com/item','☀ Oferta 👩‍💻\nhttps://example.com/other','☀ Oferta','☀ Oferta 👩‍💻 https://example.com/item'])assert.equal(await page.evaluate(wrong=>ContatoWhatsAppDOM.captionReady(document.querySelector('#caption'),wrong),wrong),true);
+ passed++;console.log('PASS nonempty caption accepted even when content or length differs');
+ await page.locator('#caption').fill('   ');
+ assert.equal(await page.evaluate(()=>ContatoWhatsAppDOM.captionReady(document.querySelector('#caption'),'Mensagem')),false);
+ assert.equal(await page.evaluate(()=>ContatoWhatsAppDOM.captionReady(document.querySelector('#caption'),'')),true);
  // Simulate a framework discarding the text and replacing the editor after input.
  await page.locator('#caption').fill('');
  const rejected=await page.evaluate(async()=>{
   const editor=document.querySelector('#caption');editor.addEventListener('input',()=>editor.replaceWith(editor.cloneNode(false)),{once:true});
-  try{await ContatoWhatsAppDOM.setCaption(editor,'Mensagem completa',()=>document.querySelector('#caption'));return false;}catch(e){return e.code==='CAPTION_MISMATCH';}
+  try{await ContatoWhatsAppDOM.setCaption(editor,'Mensagem completa',()=>document.querySelector('#caption'));return false;}catch(e){return e.code==='CAPTION_EMPTY';}
  });assert.equal(rejected,true);passed++;console.log('PASS discarded caption blocks sending despite detached editor retaining text');
  // Exercise the fallback input notification without emitting a duplicate native event.
  const fallback=await page.evaluate(async()=>{

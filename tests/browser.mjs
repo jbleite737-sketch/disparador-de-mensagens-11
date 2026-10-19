@@ -53,7 +53,7 @@ try{
     const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" role="textbox" style="min-height:30px"></div><div role="button" aria-label="Enviar"><span data-icon="wds-ic-send-filled">Enviar foto</span></div>';
     const imageURL=URL.createObjectURL(file);const previewImage=new Image();previewImage.onload=()=>dialog.querySelector('canvas').getContext('2d').drawImage(previewImage,0,0,180,160);previewImage.src=imageURL;document.querySelector('#main footer').append(dialog);
     dialog.querySelector('[contenteditable]').addEventListener('input',event=>{
-     window.inputCount=(window.inputCount||0)+1;window.captionModel=event.target.innerText;
+     window.inputCount=(window.inputCount||0)+1;window.captionModel=event.target.innerText.replace('🚨 ','');
      const editor=event.target.cloneNode(false);
      window.captionModel.split('\\n').forEach((line,index)=>{const row=index?document.createElement('div'):editor;
       line.split('🚨').forEach((part,i)=>{if(i){const emoji=document.createElement('img');emoji.alt='🚨';emoji.setAttribute('aria-hidden','true');row.append(emoji);}row.append(document.createTextNode(part));});
@@ -75,7 +75,7 @@ try{
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:'artifacts/interface.png',fullPage:true});
  await page.locator('#start').click();await page.locator('#accept-confirm').click();await page.waitForFunction(()=>document.querySelector('#submitted').textContent==='1',{},{timeout:15000});
  const photoTab=tabs.get(data.campaign.tabId);
- assert.equal(mediaResults[0].clicks,1);assert.equal(mediaResults[0].inputs,1);assert.equal(mediaResults[0].pastes,1);assert.equal(mediaResults[0].name,'128.png');assert.equal(mediaResults[0].caption,mediaJobs[0].message.caption);assert.equal(mediaResults[0].images,1);pass('Foto e legenda com emoji-imagem, editor e botão recriados: input único e envio automático');
+ assert.equal(mediaResults[0].clicks,1);assert.equal(mediaResults[0].inputs,1);assert.equal(mediaResults[0].pastes,1);assert.equal(mediaResults[0].name,'128.png');assert.equal(mediaResults[0].caption,mediaJobs[0].message.caption.replace('🚨 ',''));assert.equal(mediaResults[0].images,1);pass('Legenda com caracteres diferentes: input único, clique automático e confirmação pelo texto efetivamente enviado');
  assert.equal(mediaJobs[0].message.type,'image');assert.equal(typeof mediaJobs[0].message.media.base64,'string');assert.equal(Object.hasOwn(mediaJobs[0].message,'text'),false);
  assert.match(await page.locator('#notice').textContent(),/próximo lote começa automaticamente/);
  await page.waitForFunction(()=>document.querySelector('#submitted').textContent==='1');
@@ -85,7 +85,7 @@ try{
  console.log('Aguardando 30s de intervalo + 30s de pausa de lote (relógio real)…');
  await page.waitForFunction(()=>document.querySelector('#state').textContent==='Concluída',{},{timeout:85000});
  assert.equal(await page.locator('#submitted').textContent(),'2');assert.equal(mediaJobs.length,2);assert.ok(mediaResults[1].at-mediaResults[0].at>=60000);
- assert.equal(await photoTab.evaluate(()=>window.mediaClicks),1);assert.equal(await photoTab.evaluate(()=>window.pasteCount),1);assert.equal((await photoTab.locator('.message-out').innerText()).trim(),mediaJobs[1].message.caption);assert.notEqual(mediaJobs[0].message.caption,mediaJobs[1].message.caption);
+ assert.equal(await photoTab.evaluate(()=>window.mediaClicks),1);assert.equal(await photoTab.evaluate(()=>window.pasteCount),1);assert.equal((await photoTab.locator('.message-out').innerText()).trim(),mediaJobs[1].message.caption.replace('🚨 ',''));assert.notEqual(mediaJobs[0].message.caption,mediaJobs[1].message.caption);
  pass('Dois lotes completados automaticamente, delay real >=60s, uma mensagem foto+legenda por contato');
  assert.deepEqual(errors,[]);pass('Sem exceções JavaScript na interface');
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'artifacts/interface-mobile.png',fullPage:true});pass('Layout estreito não cria rolagem horizontal');

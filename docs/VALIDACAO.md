@@ -1,8 +1,8 @@
-# Validação da versão 1.4.0
+# Validação da versão 1.5.0
 
 - `npm test`: 18 testes passaram, zero falhas. Abrangem CSV/telefones, personalização, limites, exportação, persistência de mídia, rejeição de formatos, tokens da fila, pausa, reinício e resultados incertos.
 - `npm run test:browser`: 16 verificações passaram no Chromium. Incluem XLSX real, deduplicação, campos personalizados, rascunho, fluxo de texto, pausa, relatório, destinatário incorreto, lista colada, renderização sem execução de HTML, foto persistida, foto + legenda em um único clique, ausência de exceções e layout estreito.
-- `npm run test:dom`: 14 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, comparação de conteúdo, editor recriado sem texto e evento input de apoio.
+- `npm run test:dom`: 14 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, aceitação de conteúdo diferente não vazio, editor recriado sem texto e evento input de apoio.
 - A página de teste usa a política `script-src 'self'; object-src 'none'`, equivalente à restrição de scripts do manifesto. ExcelJS funciona como biblioteca local, sem CDN.
 - `npm run package`: ZIPs gerados e reabertos com validação de CRC e verificação dos arquivos obrigatórios do manifesto.
 - Teste de dois lotes consecutivos: intervalo mínimo/máximo de 30 segundos, um contato por lote e pausa de 30 segundos. A próxima conversa abriu em menos de 10 segundos, sem clique antecipado; o segundo envio ocorreu automaticamente após pelo menos 60 segundos de relógio real; cada contato recebeu uma operação com arquivo e legenda juntos, sem envio de texto separado.
@@ -26,4 +26,8 @@ A regressão da versão 1.3 recria o botão após o evento de digitação da leg
 
 Antes da correção, o novo teste falhou: `🚨 Oferta\nPreço R$ 17,32\n\nhttps://example.com` foi lido como `🚨 OfertaPreço R$ 17,32\n\n\nhttps://example.com`. O leitor anterior perdia a separação antes do primeiro bloco e acrescentava quebras extras. Após a correção, esse caso passou.
 
-O teste integrado converte o emoji em imagem com `alt`, recria o editor e o botão após input, e exige uma notificação de input, um clique de envio e legenda final correspondente. Verifica a continuidade após 60 segundos de intervalo real. Testes negativos confirmam que texto descartado pelo editor e URLs ou sequências de emojis diferentes continuam rejeitados. Esses cenários reproduzem uma falha do código; não constituem inspeção do DOM da conta real do usuário.
+O teste integrado converte o emoji em imagem com `alt`, recria o editor e o botão após input, e exige uma notificação de input, um clique de envio e legenda final correspondente. Verifica a continuidade após 60 segundos de intervalo real. Na versão 1.4, os testes negativos rejeitavam texto descartado pelo editor, URLs e sequências de emojis diferentes. A versão 1.5 substitui essa regra pela presença de conteúdo, conforme solicitado. Esses cenários reproduzem uma falha do código; não constituem inspeção do DOM da conta real do usuário.
+
+## Validação da regra solicitada na versão 1.5
+
+O teste integrado remove o emoji inicial da legenda no editor, tornando seu conteúdo e comprimento diferentes do texto da campanha. Exige um único clique automático, confirmação pelo texto realmente enviado, abertura do próximo contato e intervalo real de pelo menos 60 segundos antes do segundo envio. O teste de DOM aceita conteúdo não vazio diferente e rejeita o campo vazio quando foi solicitada uma legenda. Não há mais bloqueio por igualdade exata da legenda.

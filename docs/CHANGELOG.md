@@ -1,3 +1,11 @@
+# 1.5.0
+
+- Substituída a comparação exata da legenda pela presença de conteúdo, conforme solicitado. Diferenças de caracteres não bloqueiam o clique.
+- Campo vazio continua impedindo o envio quando há legenda configurada; campanhas de foto sem legenda continuam suportadas.
+- A confirmação da mensagem de saída usa o texto efetivamente preenchido, permitindo que a fila avance mesmo com diferenças aceitas.
+- Mantidas confirmação do destinatário, prévia única, foto, autorização da fila, delay e prevenção de reenvio incerto.
+- Teste integrado altera a legenda antes do clique e exige envio único, confirmação e avanço automático ao segundo contato após o delay.
+
 # 1.4.0
 
 - Corrigida leitura de emojis como imagens em legendas com linhas mistas (`texto<div>linha</div>`), linhas vazias, links e parágrafos.
