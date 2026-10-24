@@ -1,5 +1,5 @@
 import {mediaPayload,readAsset,validateMedia,clearAssets} from './media.js';
-import {emptyState,personalize,settings,delayMs,phone} from './core.js';
+import {emptyState,personalize,settings,delayMs,phone,nextAllowed} from './core.js';
 let gate=Promise.resolve();
 const locked=fn=>{const p=gate.then(fn);gate=p.catch(()=>{});return p;};
 const read=async()=> (await chrome.storage.local.get('campaign')).campaign||emptyState();
@@ -35,7 +35,17 @@ async function retryPreparation(s,c,elapsed){
  }else{c.status='error';c.detail+=' • Três tentativas de preparação; contato ignorado sem enviar.';await continueQueue(s,elapsed);}
 }
 
+async function waitForWindow(s,c){
+ const now=Date.now(),when=nextAllowed(s.settings,now);
+ if(when<=now)return false;
+ c.status='preparing';s.job.notBefore=Math.max(s.job.notBefore||0,when);s.nextAt=s.job.notBefore;
+ s.notice='Fora da janela de envio. Retomada automática no próximo horário permitido.';
+ await save(s);await chrome.alarms.create('watchdog',{when:s.nextAt+150000});return true;
+}
 async function openJob(s,notBefore=0){
+ const now=Date.now(),allowed=nextAllowed(s.settings,now);
+ if(allowed>now){s.nextAt=nextAllowed(s.settings,Math.max(allowed,notBefore));s.notice='Fora da janela de envio. Retomada automática no próximo horário permitido.';await save(s);await chrome.alarms.create('queue',{when:s.nextAt});return;}
+ notBefore=notBefore?nextAllowed(s.settings,Math.max(now,notBefore)):0;
  const c=s.contacts.find(c=>c.status==='pending');
  if(!c)return;
  c.status='preparing';s.job={id:c.id,token:crypto.randomUUID(),started:Date.now(),notBefore};
@@ -72,14 +82,16 @@ async function handle(m,sender){
   if(m.type==='READY'){
    if(s.status!=='running'||c.status!=='preparing')throw Error('Fila pausada.');
    if(Date.now()<(s.job.notBefore||0))return false;
+   if(await waitForWindow(s,c))return false;
    c.status='sending';s.nextAt=null;s.notice='Enviando para '+(c.name||c.phone);await save(s);return true;
   }
-  if(m.type==='VERIFY')return s.status==='running'&&c.status==='sending';
+  if(m.type==='VERIFY'){if(s.status!=='running'||c.status!=='sending')return false;return !await waitForWindow(s,c);}
   if(!['submitted','uncertain','error'].includes(m.status))throw Error('Resultado inválido.');
   if(!['preparing','sending'].includes(c.status))return false;
   const safePreparationFailure=c.status==='preparing'&&m.status==='error'&&m.clicked===false&&RECOVERABLE_BEFORE_SEND.has(m.code);
   c.status=m.status;c.failureCode=m.code||null;c.detail=String(m.detail||'').slice(0,500);c.at=new Date().toISOString();
   const elapsed=Math.max(0,Date.now()-Math.max(s.job.started,s.job.notBefore||0));s.job=null;await chrome.alarms.clear('watchdog');
+  if(m.status==='error'&&m.clicked===false&&m.code==='SEND_BUTTON_NOT_FOUND'&&s.status==='running'){await continueQueue(s,elapsed);return true;}
   if(safePreparationFailure&&s.status==='running'){await retryPreparation(s,c,elapsed);return true;}
   if(m.status!=='submitted'){await pause(s,'Fila pausada: '+c.detail);return true;}
   await continueQueue(s,elapsed);return true;
@@ -103,7 +115,7 @@ async function handle(m,sender){
    if(!s.consent)throw Error('Confirme que os contatos autorizaram as mensagens.');
    if(!s.contacts.some(c=>c.status==='pending'))throw Error('Não há contatos pendentes.');
    s.contacts.filter(c=>c.status==='pending').forEach(c=>personalize(s.template,c,!!s.media,s.media?1024:4000));if(s.media)await mediaPayload(s.media);s.settings=settings(s.settings);
-   s.status='running';s.nextAt=Date.now()+1000;s.notice='Fila iniciada. Mantenha o Chrome e o WhatsApp Web abertos.';await save(s);await chrome.alarms.create('queue',{when:s.nextAt});return s;
+   s.status='running';s.nextAt=nextAllowed(s.settings,Date.now()+1000);s.notice=s.nextAt>Date.now()+1000?'Fora da janela de envio. Retomada automática no próximo horário permitido.':'Fila iniciada. Mantenha o Chrome e o WhatsApp Web abertos.';await save(s);await chrome.alarms.create('queue',{when:s.nextAt});return s;
   }
   if(m.type==='PAUSE'){
    if(s.status!=='running')return s;

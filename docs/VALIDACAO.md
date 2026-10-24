@@ -1,6 +1,6 @@
-# Validação da versão 1.5.0
+# Validação da versão 1.6.0
 
-- `npm test`: 18 testes passaram, zero falhas. Abrangem CSV/telefones, personalização, limites, exportação, persistência de mídia, rejeição de formatos, tokens da fila, pausa, reinício e resultados incertos.
+- `npm test`: 22 testes passaram, zero falhas. Abrangem CSV/telefones, personalização, limites, exportação, persistência de mídia, rejeição de formatos, tokens da fila, pausa, reinício e resultados incertos.
 - `npm run test:browser`: 16 verificações passaram no Chromium. Incluem XLSX real, deduplicação, campos personalizados, rascunho, fluxo de texto, pausa, relatório, destinatário incorreto, lista colada, renderização sem execução de HTML, foto persistida, foto + legenda em um único clique, ausência de exceções e layout estreito.
 - `npm run test:dom`: 14 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, aceitação de conteúdo diferente não vazio, editor recriado sem texto e evento input de apoio.
 - A página de teste usa a política `script-src 'self'; object-src 'none'`, equivalente à restrição de scripts do manifesto. ExcelJS funciona como biblioteca local, sem CDN.
@@ -31,3 +31,9 @@ O teste integrado converte o emoji em imagem com `alt`, recria o editor e o bot�
 ## Validação da regra solicitada na versão 1.5
 
 O teste integrado remove o emoji inicial da legenda no editor, tornando seu conteúdo e comprimento diferentes do texto da campanha. Exige um único clique automático, confirmação pelo texto realmente enviado, abertura do próximo contato e intervalo real de pelo menos 60 segundos antes do segundo envio. O teste de DOM aceita conteúdo não vazio diferente e rejeita o campo vazio quando foi solicitada uma legenda. Não há mais bloqueio por igualdade exata da legenda.
+
+## Janela diária e avanço sem leitura na versão 1.6
+
+Testes de relógio controlado cobrem 08:00 inclusivo, 18:00 exclusivo, minutos, virada da meia-noite, janela desativada, validação de horários, retomada automática, pausa manual e fechamento da janela entre READY e VERIFY. A ausência de botão antes do clique registra erro e segue sem contabilizar envio.
+
+O teste de navegador não cria `.message-out` nem indicadores de entrega/leitura. O fluxo real do content script deve avançar apenas com campo limpo ou prévia fechada. A configuração da janela é salva e restaurada na interface; nesse teste de envio ela é desativada para não depender do horário do ambiente. O intervalo entre os dois envios continua sendo medido em relógio real.

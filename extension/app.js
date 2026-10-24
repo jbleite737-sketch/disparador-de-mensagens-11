@@ -24,8 +24,8 @@ function render(loadInputs=false){
  $('pause').hidden=state.status!=='running';$('start').hidden=state.status==='running'||state.status==='completed';$('start').textContent=state.status==='paused'?'Retomar fila →':'Iniciar envio automático →';
  $('start').disabled=!state.contacts.some(c=>c.status==='pending')||!!state.job;
  $('review').hidden=!state.contacts.some(c=>c.status==='uncertain')||!!state.job;
- for(const id of ['template','min','max','batch','rest','consent'])$(id).disabled=!draft;
- if(loadInputs){$('template').value=state.template;$('consent').checked=state.consent;for(const k of ['min','max','batch','rest'])$(k).value=state.settings[k];}
+ for(const id of ['template','min','max','batch','rest','windowEnabled','windowStart','windowEnd','consent'])$(id).disabled=!draft;
+ if(loadInputs){$('windowEnabled').checked=state.settings.windowEnabled!==false;$('windowStart').value=state.settings.windowStart||'08:00';$('windowEnd').value=state.settings.windowEnd||'18:00';$('window-zone').textContent=Intl.DateTimeFormat().resolvedOptions().timeZone;$('template').value=state.template;$('consent').checked=state.consent;for(const k of ['min','max','batch','rest'])$(k).value=state.settings[k];}
  const body=$('contact-table');body.replaceChildren();
  for(const c of state.contacts.slice(0,100)){
   const tr=document.createElement('tr');for(const text of [c.name||'Sem nome','+'+c.phone]){const td=document.createElement('td');td.textContent=text;tr.append(td);}
@@ -77,12 +77,12 @@ on('import','click',()=>{
  render();toast('Lista pronta. Confira a prévia antes de iniciar.');
 });
 on('sample','click',async()=>{const wb=new ExcelJS.Workbook();const sheet=wb.addWorksheet('Contatos');sheet.addRow(['nome','telefone','empresa']);sheet.addRow(['Ana','+5511999999999','Exemplo']);sheet.addRow(['Bruno','+5521999999999','Exemplo']);sheet.getColumn(2).numFmt='@';sheet.columns.forEach(c=>c.width=25);download(new Blob([await wb.xlsx.writeBuffer()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'modelo-contatos.xlsx');});
-for(const id of ['template','min','max','batch','rest','consent'])on(id,'input',()=>{dirty=true;showPreview();});
+for(const id of ['template','min','max','batch','rest','windowEnabled','windowStart','windowEnd','consent'])on(id,'input',()=>{dirty=true;showPreview();});
 on('prev','click',()=>{previewIndex=(previewIndex-1+state.contacts.length)%Math.max(1,state.contacts.length);showPreview();});
 on('next','click',()=>{previewIndex=(previewIndex+1)%Math.max(1,state.contacts.length);showPreview();});
 async function saveDraft(){
  const previous=(await rpc('GET')).media;
- const result=await rpc('SAVE',{contacts:state.contacts,template:$('template').value,settings:Object.fromEntries(['min','max','batch','rest'].map(k=>[k,$(k).value])),consent:$('consent').checked,media:state.media});state=result;dirty=false;if(previous&&previous.id!==state.media?.id)await deleteAsset(previous.id);render(true);
+ const result=await rpc('SAVE',{contacts:state.contacts,template:$('template').value,settings:{...Object.fromEntries(['min','max','batch','rest','windowStart','windowEnd'].map(k=>[k,$(k).value])),windowEnabled:$('windowEnabled').checked},consent:$('consent').checked,media:state.media});state=result;dirty=false;if(previous&&previous.id!==state.media?.id)await deleteAsset(previous.id);render(true);
 }
 on('save','click',async()=>{await saveDraft();toast('Rascunho salvo.');});
 on('start','click',async()=>{

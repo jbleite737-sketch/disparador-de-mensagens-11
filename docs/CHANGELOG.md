@@ -1,3 +1,11 @@
+# 1.6.0
+
+- Avanço após clique e limpeza do campo ou fechamento da prévia de mídia, sem aguardar mensagem no histórico, entrega ou leitura.
+- Janela diária configurável, inicialmente 08:00–18:00, usando o fuso local do computador. Suporte a minutos e janelas que atravessam a meia-noite.
+- Horários persistidos, retomada automática com Chrome aberto e validação antes da autorização final de envio; delay e pausas de lote preservados.
+- Botão ausente antes do clique registra erro e continua a fila; clique sem limpeza/fechamento permanece incerto.
+- Testes de limites da janela, retomada, pausa manual, ausência de botão e fluxo de envio sem seletor de mensagem de saída nem tiques.
+
 # 1.5.0
 
 - Substituída a comparação exata da legenda pela presença de conteúdo, conforme solicitado. Diferenças de caracteres não bloqueiam o clique.

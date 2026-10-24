@@ -1,4 +1,4 @@
-# Contato Flow 1.5 — extensão Chrome
+# Contato Flow 1.6 — extensão Chrome
 
 Extensão local para importar contatos e organizar uma fila de mensagens de texto e fotos no WhatsApp Web. Construída a partir da análise funcional do WabulkXpress, com código independente.
 
@@ -30,8 +30,8 @@ A aba do WhatsApp é ativada a cada contato. Use um perfil separado do Chrome se
 
 - **Pendente:** ainda não tentada.
 - **Abrindo / Enviando:** operação em andamento.
-- **Submetida:** uma nova mensagem de saída foi observada; não confirma entrega ou leitura.
-- **Erro:** a tentativa não foi concluída. Falhas de localização do input/prévia da foto, confirmadas antes da autorização de envio, têm até três tentativas automáticas com espera progressiva; depois o contato é registrado como erro e a fila continua. Outros erros, como identidade do destinatário não confirmada, pausam a fila. O relatório não os classifica como enviados.
+- **Submetida:** o botão foi acionado e o campo limpou ou a prévia da foto fechou; não confirma entrega ou leitura.
+- **Erro:** a tentativa não foi concluída. Falhas de localização do input/prévia da foto, confirmadas antes da autorização de envio, têm até três tentativas automáticas com espera progressiva; depois o contato é registrado como erro e a fila continua. Botão de envio ausente antes do clique registra erro e avança sem classificar o contato como enviado. Outros erros, como identidade do destinatário não confirmada, pausam a fila. O relatório não os classifica como enviados.
 - **Incerta:** pode ter ocorrido envio, mas não foi possível confirmar. Confira a conversa, depois clique **Já conferi os envios incertos**. A extensão não reenviará esses contatos.
 - **Revisada:** resultado incerto conferido manualmente, excluído de novas tentativas.
 
@@ -47,7 +47,7 @@ Permissões: `storage` para persistência, `alarms` para a fila e acesso apenas 
 
 O núcleo, a mídia e a fila possuem testes automatizados. A interface, o background e o content script foram exercitados no Chromium com APIs Chrome e WhatsApp simulados, sem envio real. O Chromium deste ambiente proíbe extensões locais por política administrativa, por isso não foi possível validar a extensão carregada de fato neste ambiente. A interface real do WhatsApp e os diferentes tipos de conversa ainda precisam de teste com um número seu. Conversas com identificadores LID, sem telefone verificável na página, são recusadas pelo adaptador.
 
-A versão 1.5 envia **texto ou uma foto JPG/PNG/WebP por campanha**, com legenda opcional. Não inclui vídeo, áudio, PDF, galerias, fotos diferentes por contato, email/SMS, IA ou agendamento por data. Para planilhas .xls, salve como .xlsx. A extensão não é afiliada ao WhatsApp/Meta e não foi publicada na loja.
+A versão 1.6 envia **texto ou uma foto JPG/PNG/WebP por campanha**, com legenda opcional. Não inclui vídeo, áudio, PDF, galerias, fotos diferentes por contato, email/SMS, IA ou agendamento por data. Para planilhas .xls, salve como .xlsx. A extensão não é afiliada ao WhatsApp/Meta e não foi publicada na loja.
 
 ## Desenvolvimento
 
@@ -66,7 +66,7 @@ O teste de navegador usa `/usr/bin/chromium`. Ele simula as APIs Chrome e o arma
 
 Arquivos: `extension/` (produto), `tests/` (testes), `docs/ANALISE-REA.md` (análise), `docs/rea-original.json` (evidência REA).
 
-## Atualizar das versões anteriores para 1.5
+## Atualizar das versões anteriores para 1.6
 
 Pause a campanha, feche a aba dedicada do WhatsApp, substitua os arquivos na mesma pasta de instalação e clique **Recarregar** em `chrome://extensions`. Reabra o painel. Para contatos já marcados como erro na versão anterior, crie uma nova campanha com a lista desejada; contatos submetidos ou incertos não são recolocados na fila automaticamente.
 
@@ -76,10 +76,16 @@ A extensão usa automação do WhatsApp Web, não uma chamada à API oficial da 
 
 A detecção aceita imagem, canvas ou imagem de fundo na prévia, botão acessível “Enviar/Send” e novos ícones, inclusive quando a prévia fica dentro do rodapé da conversa. Usa elementos criados após colar a foto para não confundir mensagens antigas ou o editor de texto com a prévia.
 
-A colagem usa `ClipboardEvent` com `DataTransfer`, sem ler ou alterar a área de transferência do sistema. Se o WhatsApp rejeitar eventos sintéticos, a prévia não abrirá e a tentativa terminará com diagnóstico; não equivale a um Ctrl+V físico. Após reconhecer a foto e conferir a legenda, a extensão clica em Enviar automaticamente, confirma a nova mensagem, abre imediatamente o próximo contato e aguarda o delay nessa conversa antes de enviar. Não é necessário clicar em Enviar ou Retomar a cada contato/lote.
+A colagem usa `ClipboardEvent` com `DataTransfer`, sem ler ou alterar a área de transferência do sistema. Se o WhatsApp rejeitar eventos sintéticos, a prévia não abrirá e a tentativa terminará com diagnóstico; não equivale a um Ctrl+V físico. Após reconhecer a foto e conferir a legenda, a extensão clica em Enviar automaticamente, observa a limpeza do campo ou fechamento da prévia, abre imediatamente o próximo contato e aguarda o delay nessa conversa antes de enviar. Não é necessário clicar em Enviar ou Retomar a cada contato/lote.
 
 Na versão 1.3, a conferência anterior ao clique aceita que o WhatsApp recrie o botão ao preencher a legenda. O envio continua exigindo destinatário confirmado, prévia única, mesma assinatura visual da mídia e campo preenchido quando houver legenda. O worker registra o horário mínimo de envio e rejeita autorização antecipada, inclusive com a próxima conversa já aberta. Pausar durante essa espera mantém o próximo contato pendente.
 
 Na versão 1.5, a legenda não precisa corresponder exatamente ao texto personalizado: se foi solicitada uma legenda, basta que o campo esteja preenchido. Isso permite o envio mesmo se parte do texto ou de um link estiver ausente ou diferente. Foto sem legenda continua permitida quando a campanha não tem texto. O preenchimento emite `input` caso o navegador não o faça e aguarda a atualização do editor; não insere HTML do usuário.
 
-Após o clique, a confirmação visual usa a legenda efetivamente presente na prévia, em vez do texto original. Assim, diferenças aceitas antes do envio não interrompem a continuidade da fila. Uma mensagem nova com foto precisa aparecer e a prévia precisa fechar antes de seguir para o próximo contato. Envios incertos continuam pausando a fila, sem repetição automática.
+Após o clique, a fila avança quando o campo de texto limpa ou a prévia da foto fecha. Não aguarda mensagem aparecer no histórico, tiques, entrega nem leitura pelo destinatário. Se a interface não limpar/fechar em até 20 segundos, o resultado permanece incerto e não há repetição automática.
+
+## Janela diária de envio
+
+Na etapa de intervalos, configure **Usar janela diária de envio**, **Enviar a partir de** e **Enviar até**. O padrão é 08:00–18:00, no fuso local do computador que executa o Chrome, exibido no painel. O início está incluído; o fim não. Horários como 22:00–06:00 atravessam a meia-noite; início e fim iguais são rejeitados. Desmarque a opção para enviar sem restrição de horário.
+
+Fora da janela, a campanha continua ativa em espera e retoma automaticamente, sem clicar em Retomar, enquanto Chrome/WhatsApp permanecem abertos. O delay e as pausas de lote continuam valendo; se terminarem fora da janela, o envio aguarda a próxima abertura. A fila verifica a janela também antes do clique. Pausa manual cancela a retomada automática; fechar o Chrome ou a aba ainda exige revisão e retomada manual. Se o computador suspender, a execução só pode continuar quando ele voltar e estiver dentro da janela.

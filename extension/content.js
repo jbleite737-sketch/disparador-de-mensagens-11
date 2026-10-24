@@ -26,7 +26,6 @@
   // Never overwrite an unrelated draft; photo captions are entered in the preview.
   if(normalize(box.innerText)!==normalize(job.media?'':job.text))return null;
   const button=dom.sendButtons(main.querySelector('footer')||main)[0];
-  if(!job.media&&(!visible(button)||button.disabled))return null;
   return {main,box,button,header:main.querySelector('header')?.innerText};
  }
  function mediaPreview(){return previewBaseline?dom.preview(previewBaseline):null;}
@@ -50,27 +49,32 @@
   while(Date.now()<deadline){view=surface();if(view)break;await sleep(500);}
   if(!view)throw Error('Não foi possível confirmar destinatário e texto. Verifique login, número e interface; nenhuma mensagem foi acionada.');
   let preview;if(job.media)preview=await preparePhoto(view);
-  // The next conversation opens immediately; sending remains gated by the worker.
-  while(Date.now()<(job.notBefore||0))await sleep(Math.min(1000,job.notBefore-Date.now()));
-  while(!await rpc('READY',{token:job.token}))await sleep(250);
-  if(!await rpc('VERIFY',{token:job.token}))throw Error('Fila pausada antes do envio.');
-  if(!view.main.isConnected||!identity(view.main))throw Error('A conversa mudou antes do envio.');
-  let button,submittedCaption=job.text;
-  if(job.media){
-   const current=mediaPreview();if(!current||dom.signature(current.image)!==dom.signature(preview.image)||!dom.captionReady(current.caption,job.text))throw Error('A foto ou a legenda mudou antes do envio.');
-   submittedCaption=dom.text(current.caption);preview=current;button=current.button;
-  }else{
-   const current=surface();if(!current||current.main!==view.main||current.box!==view.box)throw Error('A conversa mudou antes do envio.');button=current.button;
+  if(!job.media){
+   const until=Date.now()+5000;
+   while(Date.now()<until&&!surface()?.button)await sleep(250);
+   if(!surface()?.button)throw failure('SEND_BUTTON_NOT_FOUND','Botão de envio não encontrado. Contato ignorado sem enviar.');
   }
-  const prior=new Set([...view.main.querySelectorAll('.message-out')]);
+  // The next conversation opens immediately; sending remains gated by the worker.
+  while(Date.now()<(job.notBefore||0))await sleep(Math.min(60000,job.notBefore-Date.now()));
+  while(true){
+   if(await rpc('READY',{token:job.token})&&await rpc('VERIFY',{token:job.token}))break;
+   await sleep(60000);
+  }
+  if(!view.main.isConnected||!identity(view.main))throw Error('A conversa mudou antes do envio.');
+  let button;
+  if(job.media){
+   const current=mediaPreview();if(!current&&!dom.sendButtons().length)throw failure('SEND_BUTTON_NOT_FOUND','Botão de envio não encontrado. Contato ignorado sem enviar.');if(!current||dom.signature(current.image)!==dom.signature(preview.image)||!dom.captionReady(current.caption,job.text))throw Error('A foto ou a legenda mudou antes do envio.');
+   preview=current;button=current.button;
+  }else{
+   const current=surface();if(current&&!current.button)throw failure('SEND_BUTTON_NOT_FOUND','Botão de envio não encontrado. Contato ignorado sem enviar.');if(!current||current.main!==view.main||current.box!==view.box)throw Error('A conversa mudou antes do envio.');button=current.button;
+  }
   clicked=true;button.click();
   const end=Date.now()+20000;
   while(Date.now()<end){
    if(!view.main.isConnected||!identity(view.main))throw Error('Conversa alterada após o clique. Confira o envio manualmente.');
-   const bubble=[...view.main.querySelectorAll('.message-out')].find(e=>!prior.has(e)&&dom.comparable(dom.text(e)).includes(dom.comparable(submittedCaption))&&(!job.media||[...e.querySelectorAll('img,video')].some(image=>{const r=image.getBoundingClientRect();return r.width>=64&&r.height>=64;})));
-   const cleared=job.media?!preview.button.isConnected||!visible(preview.button):!normalize(view.box.innerText);
-   if(bubble&&cleared){
-    await rpc('RESULT',{token:job.token,status:'submitted',detail:job.media?'Nova mensagem com foto e legenda observada. Não confirma entrega nem leitura.':'Nova mensagem de saída observada na conversa. Não confirma entrega nem leitura.'});return;
+   const cleared=job.media?!visible(preview.caption)&&!mediaPreview():!normalize(view.box.innerText);
+   if(cleared){
+    await rpc('RESULT',{token:job.token,status:'submitted',detail:job.media?'Clique de envio realizado e prévia da foto fechada. Não confirma entrega nem leitura.':'Clique de envio realizado e campo de texto limpo. Não confirma entrega nem leitura.'});return;
    }
    await sleep(300);
   }

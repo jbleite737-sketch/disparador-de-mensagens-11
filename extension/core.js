@@ -1,4 +1,4 @@
-export const DEFAULTS = {min:30,max:60,batch:10,rest:180,country:'55'};
+export const DEFAULTS = {min:30,max:60,batch:10,rest:180,country:'55',windowEnabled:true,windowStart:'08:00',windowEnd:'18:00'};
 export function key(s){return String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/[^a-z0-9_]+/g,'_').replace(/^_|_$/g,'');}
 export function phone(raw,country='55'){
  let s=String(raw??'').trim();
@@ -63,6 +63,9 @@ export function settings(input){
  for(const k of ['min','max','batch','rest'])if(!Number.isFinite(+out[k]))throw Error('Preencha os intervalos com números.');else out[k]=+out[k];
  if(out.min<30||out.max<out.min||out.max>3600)throw Error('Intervalos: mínimo de 30s e máximo entre o mínimo e 3.600s.');
  if(!Number.isInteger(out.batch)||out.batch<1||out.batch>500||out.rest<30||out.rest>86400)throw Error('Lote: 1–500 contatos. Pausa: 30–86.400 segundos.');
+ if(typeof out.windowEnabled!=='boolean')throw Error('Agendamento inválido.');
+ for(const k of ['windowStart','windowEnd'])if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(out[k]))throw Error('Use horários no formato HH:MM.');
+ if(out.windowStart===out.windowEnd)throw Error('Início e fim da janela devem ser diferentes.');
  return out;
 }
 export function delayMs(s,count,latency=0,random=Math.random){
@@ -74,3 +77,14 @@ export function csvExport(contacts){
  return '\uFEFF'+[['nome','telefone','status','detalhe','horario'],...contacts.map(c=>[c.name,c.phone,c.status,c.detail,c.at])].map(r=>r.map(q).join(';')).join('\r\n');
 }
 export function emptyState(){return {version:1,status:'draft',contacts:[],template:'Olá, {{nome}}! Tudo bem?',settings:{...DEFAULTS},nextAt:null,tabId:null,job:null,notice:'Importe sua lista para começar.',consent:false,media:null};}
+
+// Local timezone of the computer running Chrome. Start inclusive, end exclusive.
+export function nextAllowed(s,at=Date.now()){
+ if(s.windowEnabled===false)return at;
+ const start=s.windowStart||'08:00',end=s.windowEnd||'18:00';
+ const minutes=t=>Number(t.slice(0,2))*60+Number(t.slice(3));
+ const a=minutes(start),b=minutes(end),date=new Date(at),now=date.getHours()*60+date.getMinutes();
+ if(a<b?(now>=a&&now<b):(now>=a||now<b))return at;
+ if(a<b&&now>=b)date.setDate(date.getDate()+1);
+ date.setHours(Math.floor(a/60),a%60,0,0);return date.getTime();
+}
