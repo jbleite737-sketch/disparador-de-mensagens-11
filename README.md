@@ -1,4 +1,4 @@
-# Contato Flow 1.6 — extensão Chrome
+# Contato Flow 1.6.1 — extensão Chrome
 
 Extensão local para importar contatos e organizar uma fila de mensagens de texto e fotos no WhatsApp Web. Construída a partir da análise funcional do WabulkXpress, com código independente.
 
@@ -47,7 +47,7 @@ Permissões: `storage` para persistência, `alarms` para a fila e acesso apenas 
 
 O núcleo, a mídia e a fila possuem testes automatizados. A interface, o background e o content script foram exercitados no Chromium com APIs Chrome e WhatsApp simulados, sem envio real. O Chromium deste ambiente proíbe extensões locais por política administrativa, por isso não foi possível validar a extensão carregada de fato neste ambiente. A interface real do WhatsApp e os diferentes tipos de conversa ainda precisam de teste com um número seu. Conversas com identificadores LID, sem telefone verificável na página, são recusadas pelo adaptador.
 
-A versão 1.6 envia **texto ou uma foto JPG/PNG/WebP por campanha**, com legenda opcional. Não inclui vídeo, áudio, PDF, galerias, fotos diferentes por contato, email/SMS, IA ou agendamento por data. Para planilhas .xls, salve como .xlsx. A extensão não é afiliada ao WhatsApp/Meta e não foi publicada na loja.
+A versão 1.6.1 envia **texto ou uma foto JPG/PNG/WebP por campanha**, com legenda opcional. Não inclui vídeo, áudio, PDF, galerias, fotos diferentes por contato, email/SMS, IA ou agendamento por data. Para planilhas .xls, salve como .xlsx. A extensão não é afiliada ao WhatsApp/Meta e não foi publicada na loja.
 
 ## Desenvolvimento
 
@@ -66,7 +66,7 @@ O teste de navegador usa `/usr/bin/chromium`. Ele simula as APIs Chrome e o arma
 
 Arquivos: `extension/` (produto), `tests/` (testes), `docs/ANALISE-REA.md` (análise), `docs/rea-original.json` (evidência REA).
 
-## Atualizar das versões anteriores para 1.6
+## Atualizar das versões anteriores para 1.6.1
 
 Pause a campanha, feche a aba dedicada do WhatsApp, substitua os arquivos na mesma pasta de instalação e clique **Recarregar** em `chrome://extensions`. Reabra o painel. Para contatos já marcados como erro na versão anterior, crie uma nova campanha com a lista desejada; contatos submetidos ou incertos não são recolocados na fila automaticamente.
 
@@ -89,3 +89,5 @@ Após o clique, a fila avança quando o campo de texto limpa ou a prévia da fot
 Na etapa de intervalos, configure **Usar janela diária de envio**, **Enviar a partir de** e **Enviar até**. O padrão é 08:00–18:00, no fuso local do computador que executa o Chrome, exibido no painel. O início está incluído; o fim não. Horários como 22:00–06:00 atravessam a meia-noite; início e fim iguais são rejeitados. Desmarque a opção para enviar sem restrição de horário.
 
 Fora da janela, a campanha continua ativa em espera e retoma automaticamente, sem clicar em Retomar, enquanto Chrome/WhatsApp permanecem abertos. O delay e as pausas de lote continuam valendo; se terminarem fora da janela, o envio aguarda a próxima abertura. A fila verifica a janela também antes do clique. Pausa manual cancela a retomada automática; fechar o Chrome ou a aba ainda exige revisão e retomada manual. Se o computador suspender, a execução só pode continuar quando ele voltar e estiver dentro da janela.
+
+Na versão 1.6.1, localizar o campo de legenda não depende de o botão Enviar estar habilitado. O campo é preenchido primeiro; o clique só é autorizado depois de o botão ficar disponível. O editor é localizado novamente após receber foco e pode ter até três tentativas de preenchimento enquanto continuar vazio. Se `insertText` estiver indisponível, há uma tentativa de colagem de texto simples. Não se acrescenta texto a uma legenda já preenchida, nem se repete um clique de envio.

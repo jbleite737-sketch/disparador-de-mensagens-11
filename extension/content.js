@@ -28,7 +28,7 @@
   const button=dom.sendButtons(main.querySelector('footer')||main)[0];
   return {main,box,button,header:main.querySelector('header')?.innerText};
  }
- function mediaPreview(){return previewBaseline?dom.preview(previewBaseline):null;}
+ function mediaPreview(allowDisabled=false){return previewBaseline?dom.preview(previewBaseline,{allowDisabled}):null;}
  async function preparePhoto(view){
   previewBaseline=dom.snapshot();
   const bytes=Uint8Array.from(atob(job.media.base64),c=>c.charCodeAt(0));
@@ -39,10 +39,12 @@
   view.box.focus();
   view.box.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,composed:true,clipboardData:transfer}));
   let preview;const deadline=Date.now()+35000;
-  while(Date.now()<deadline){preview=mediaPreview();if(preview)break;await sleep(250);}
+  while(Date.now()<deadline){preview=mediaPreview(true);if(preview)break;await sleep(250);}
   if(!preview)throw failure('MEDIA_PREVIEW_TIMEOUT','A prévia da foto não ficou pronta. Nenhum envio acionado. '+dom.diagnostics(previewBaseline));
-  await dom.setCaption(preview.caption,job.text,()=>mediaPreview()?.caption);
-  return preview;
+  await dom.setCaption(preview.caption,job.text,()=>mediaPreview(true)?.caption);
+  const sendDeadline=Date.now()+15000;
+  while(Date.now()<sendDeadline){const ready=mediaPreview();if(ready&&dom.captionReady(ready.caption,job.text))return ready;await sleep(250);}
+  throw failure('SEND_BUTTON_NOT_FOUND','Legenda preparada, mas o botão de envio não ficou disponível. Nenhum envio acionado.');
  }
  try{
   let view;const deadline=Date.now()+65000;
@@ -72,7 +74,7 @@
   const end=Date.now()+20000;
   while(Date.now()<end){
    if(!view.main.isConnected||!identity(view.main))throw Error('Conversa alterada após o clique. Confira o envio manualmente.');
-   const cleared=job.media?!visible(preview.caption)&&!mediaPreview():!normalize(view.box.innerText);
+   const cleared=job.media?!visible(preview.caption)&&!mediaPreview(true):!normalize(view.box.innerText);
    if(cleared){
     await rpc('RESULT',{token:job.token,status:'submitted',detail:job.media?'Clique de envio realizado e prévia da foto fechada. Não confirma entrega nem leitura.':'Clique de envio realizado e campo de texto limpo. Não confirma entrega nem leitura.'});return;
    }

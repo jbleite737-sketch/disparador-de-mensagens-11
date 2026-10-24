@@ -1,3 +1,11 @@
+# 1.6.1
+
+- Separada a localização da prévia/campo de legenda da disponibilidade do botão Enviar, corrigindo a dependência circular quando o botão começa desabilitado.
+- Reaquisição do campo após foco e até três tentativas limitadas em campo vazio quando a interface substitui ou descarta o editor.
+- Colagem de texto simples como alternativa quando insertText não está disponível; texto já preenchido não é duplicado.
+- O botão precisa estar habilitado antes do clique. Agendamento, delay, legenda não vazia e avanço após fechamento permanecem.
+- Testes de regressão com botão desabilitado, troca de campo ao focar/digitar, descarte persistente e alternativa de colagem.
+
 # 1.6.0
 
 - Avanço após clique e limpeza do campo ou fechamento da prévia de mídia, sem aguardar mensagem no histórico, entrega ou leitura.

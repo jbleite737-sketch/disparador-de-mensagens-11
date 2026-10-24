@@ -1,8 +1,8 @@
-# Validação da versão 1.6.0
+# Validação da versão 1.6.1
 
 - `npm test`: 22 testes passaram, zero falhas. Abrangem CSV/telefones, personalização, limites, exportação, persistência de mídia, rejeição de formatos, tokens da fila, pausa, reinício e resultados incertos.
 - `npm run test:browser`: 16 verificações passaram no Chromium. Incluem XLSX real, deduplicação, campos personalizados, rascunho, fluxo de texto, pausa, relatório, destinatário incorreto, lista colada, renderização sem execução de HTML, foto persistida, foto + legenda em um único clique, ausência de exceções e layout estreito.
-- `npm run test:dom`: 14 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, aceitação de conteúdo diferente não vazio, editor recriado sem texto e evento input de apoio.
+- `npm run test:dom`: 18 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, aceitação de conteúdo diferente não vazio, editor recriado sem texto e evento input de apoio.
 - A página de teste usa a política `script-src 'self'; object-src 'none'`, equivalente à restrição de scripts do manifesto. ExcelJS funciona como biblioteca local, sem CDN.
 - `npm run package`: ZIPs gerados e reabertos com validação de CRC e verificação dos arquivos obrigatórios do manifesto.
 - Teste de dois lotes consecutivos: intervalo mínimo/máximo de 30 segundos, um contato por lote e pausa de 30 segundos. A próxima conversa abriu em menos de 10 segundos, sem clique antecipado; o segundo envio ocorreu automaticamente após pelo menos 60 segundos de relógio real; cada contato recebeu uma operação com arquivo e legenda juntos, sem envio de texto separado.
@@ -37,3 +37,9 @@ O teste integrado remove o emoji inicial da legenda no editor, tornando seu cont
 Testes de relógio controlado cobrem 08:00 inclusivo, 18:00 exclusivo, minutos, virada da meia-noite, janela desativada, validação de horários, retomada automática, pausa manual e fechamento da janela entre READY e VERIFY. A ausência de botão antes do clique registra erro e segue sem contabilizar envio.
 
 O teste de navegador não cria `.message-out` nem indicadores de entrega/leitura. O fluxo real do content script deve avançar apenas com campo limpo ou prévia fechada. A configuração da janela é salva e restaurada na interface; nesse teste de envio ela é desativada para não depender do horário do ambiente. O intervalo entre os dois envios continua sendo medido em relógio real.
+
+## Preenchimento da legenda na versão 1.6.1
+
+Um teste novo falhou no código anterior: a prévia não era encontrada quando o botão começava desabilitado. Depois da correção, a legenda é preenchida antes de exigir o botão habilitado. A suíte também cobre editor recriado por foco ou input, três tentativas em campo vazio sem duplicação, rejeição se o editor descartar todo o texto e colagem de texto simples quando insertText falha.
+
+O teste integrado troca o campo ao receber foco, mantém o botão desabilitado até o input e verifica um único preenchimento aceito, um clique automático e continuidade com delay real. O usuário ainda não forneceu a mensagem exata do novo erro; os testes reproduzem condições concretas do código, mas não identificam definitivamente a causa na conta real.

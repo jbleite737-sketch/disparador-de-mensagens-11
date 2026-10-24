@@ -50,18 +50,19 @@ try{
    document.querySelector('[contenteditable]').onpaste=e=>{
     e.preventDefault();window.pasteCount=(window.pasteCount||0)+1;
     const file=e.clipboardData.files[0];window.uploadedName=file.name;window.uploadedSize=file.size;
-    const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" role="textbox" style="min-height:30px"></div><div role="button" aria-label="Enviar"><span data-icon="wds-ic-send-filled">Enviar foto</span></div>';
+    const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" role="textbox" style="min-height:30px"></div><div role="button" aria-label="Enviar" aria-disabled="true"><span data-icon="wds-ic-send-filled">Enviar foto</span></div>';
     const imageURL=URL.createObjectURL(file);const previewImage=new Image();previewImage.onload=()=>dialog.querySelector('canvas').getContext('2d').drawImage(previewImage,0,0,180,160);previewImage.src=imageURL;document.querySelector('#main footer').append(dialog);
-    dialog.querySelector('[contenteditable]').addEventListener('input',event=>{
+    const initialEditor=dialog.querySelector('[contenteditable]');initialEditor.addEventListener('focus',()=>initialEditor.replaceWith(initialEditor.cloneNode(false)),{once:true});
+    dialog.addEventListener('input',event=>{
      window.inputCount=(window.inputCount||0)+1;window.captionModel=event.target.innerText.replace('🚨 ','');
      const editor=event.target.cloneNode(false);
      window.captionModel.split('\\n').forEach((line,index)=>{const row=index?document.createElement('div'):editor;
       line.split('🚨').forEach((part,i)=>{if(i){const emoji=document.createElement('img');emoji.alt='🚨';emoji.setAttribute('aria-hidden','true');row.append(emoji);}row.append(document.createTextNode(part));});
       if(!line)row.append(document.createElement('br'));if(index)editor.append(row);
      });event.target.replaceWith(editor);
-     const old=dialog.querySelector('[role=button]');const replacement=old.cloneNode(true);old.replaceWith(replacement);window.buttonReplaced=true;
+     const old=dialog.querySelector('[role=button]');const replacement=old.cloneNode(true);replacement.removeAttribute('aria-disabled');old.replaceWith(replacement);window.buttonReplaced=true;
     },{once:true});
-    dialog.addEventListener('click',event=>{if(!event.target.closest('[role=button]'))return;send();});
+    dialog.addEventListener('click',event=>{if(!event.target.closest('[role=button]')||event.target.closest('[role=button]').getAttribute('aria-disabled')==='true')return;send();});
     const send=()=>{window.mediaClicks=(window.mediaClicks||0)+1;const bubble=document.createElement('div');bubble.className='simulated-output';bubble.style.whiteSpace='pre-wrap';const image=document.createElement('img');image.src=imageURL;bubble.append(image,document.createTextNode(window.captionModel));document.querySelector('#history').append(bubble);dialog.remove();};
    };
   </script>`});

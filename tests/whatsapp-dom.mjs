@@ -56,8 +56,8 @@ try {
  // Simulate a framework discarding the text and replacing the editor after input.
  await page.locator('#caption').fill('');
  const rejected=await page.evaluate(async()=>{
-  const editor=document.querySelector('#caption');editor.addEventListener('input',()=>editor.replaceWith(editor.cloneNode(false)),{once:true});
-  try{await ContatoWhatsAppDOM.setCaption(editor,'Mensagem completa',()=>document.querySelector('#caption'));return false;}catch(e){return e.code==='CAPTION_EMPTY';}
+  const editor=document.querySelector('#caption');const discard=e=>{if(e.target.id==='caption')e.target.replaceWith(e.target.cloneNode(false));};document.addEventListener('input',discard);window.stopDiscard=()=>document.removeEventListener('input',discard);
+  try{await ContatoWhatsAppDOM.setCaption(editor,'Mensagem completa',()=>document.querySelector('#caption'));return false;}catch(e){return e.code==='CAPTION_EMPTY';}finally{window.stopDiscard();}
  });assert.equal(rejected,true);passed++;console.log('PASS discarded caption blocks sending despite detached editor retaining text');
  // Exercise the fallback input notification without emitting a duplicate native event.
  const fallback=await page.evaluate(async()=>{
@@ -65,5 +65,30 @@ try {
   const original=document.execCommand;document.execCommand=(_,__,value)=>{editor.textContent=value;return true;};
   try{await ContatoWhatsAppDOM.setCaption(editor,'Texto sem HTML <b>literal</b>');return {events,text:editor.textContent,html:!!editor.querySelector('b')};}finally{document.execCommand=original;}
  });assert.deepEqual(fallback,{events:1,text:'Texto sem HTML <b>literal</b>',html:false});passed++;console.log('PASS fallback input event and literal text');
+ await page.setContent('<main><div contenteditable="true">Conversa</div></main>');await page.addScriptTag({content:source});
+ const disabledPreview=await page.evaluate(()=>{
+  window.baseline=ContatoWhatsAppDOM.snapshot();const dialog=document.createElement('section');
+  dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" style="min-height:30px"></div><button aria-label="Enviar" disabled>Enviar</button>';document.body.append(dialog);
+  return !!ContatoWhatsAppDOM.preview(window.baseline,{allowDisabled:true});
+ });assert.equal(disabledPreview,true);assert.equal(await page.evaluate(()=>ContatoWhatsAppDOM.preview(window.baseline)),null);
+ await page.evaluate(async()=>{
+  const p=ContatoWhatsAppDOM.preview(window.baseline,{allowDisabled:true});
+  p.caption.addEventListener('input',()=>{p.button.disabled=false;},{once:true});
+  await ContatoWhatsAppDOM.setCaption(p.caption,'Legenda',()=>ContatoWhatsAppDOM.preview(window.baseline,{allowDisabled:true})?.caption);
+ });assert.equal(await page.evaluate(()=>!!ContatoWhatsAppDOM.preview(window.baseline)),true);passed++;console.log('PASS caption can be filled while send is disabled');
+ for(const eventName of ['focus','input']){
+  await page.setContent('<div id="caption" contenteditable="true" style="min-height:30px"></div>');await page.addScriptTag({content:source});
+  await page.evaluate(async eventName=>{
+   const e=document.querySelector('#caption');e.addEventListener(eventName,()=>e.replaceWith(e.cloneNode(false)),{once:true});
+   await ContatoWhatsAppDOM.setCaption(e,'🚨 Legenda completa',()=>document.querySelector('#caption'));
+  },eventName);
+  assert.equal(await page.locator('#caption').innerText(),'🚨 Legenda completa');passed++;console.log('PASS recovers empty editor replaced on '+eventName+' without duplicated text');
+ }
+ await page.setContent('<div id="caption" contenteditable="true"></div>');await page.addScriptTag({content:source});
+ const pasted=await page.evaluate(async()=>{
+  const e=document.querySelector('#caption');let count=0;e.addEventListener('paste',event=>{event.preventDefault();count++;e.textContent=event.clipboardData.getData('text/plain');e.dispatchEvent(new InputEvent('input',{bubbles:true}));});
+  const original=document.execCommand;document.execCommand=()=>false;
+  try{await ContatoWhatsAppDOM.setCaption(e,'Texto <b>literal</b>');return {count,text:e.textContent,html:!!e.querySelector('b')};}finally{document.execCommand=original;}
+ });assert.deepEqual(pasted,{count:1,text:'Texto <b>literal</b>',html:false});passed++;console.log('PASS plain-text paste fallback when insertText is unavailable');
  console.log(`${passed} regressões de DOM passaram.`);
 }finally{await browser.close();}
