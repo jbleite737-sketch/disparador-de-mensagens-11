@@ -1,8 +1,8 @@
-# Validação da versão 1.6.1
+# Validação da versão 1.6.2
 
 - `npm test`: 22 testes passaram, zero falhas. Abrangem CSV/telefones, personalização, limites, exportação, persistência de mídia, rejeição de formatos, tokens da fila, pausa, reinício e resultados incertos.
 - `npm run test:browser`: 16 verificações passaram no Chromium. Incluem XLSX real, deduplicação, campos personalizados, rascunho, fluxo de texto, pausa, relatório, destinatário incorreto, lista colada, renderização sem execução de HTML, foto persistida, foto + legenda em um único clique, ausência de exceções e layout estreito.
-- `npm run test:dom`: 18 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, aceitação de conteúdo diferente não vazio, editor recriado sem texto e evento input de apoio.
+- `npm run test:dom`: 19 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, aceitação de conteúdo diferente não vazio, editor recriado sem texto e evento input de apoio.
 - A página de teste usa a política `script-src 'self'; object-src 'none'`, equivalente à restrição de scripts do manifesto. ExcelJS funciona como biblioteca local, sem CDN.
 - `npm run package`: ZIPs gerados e reabertos com validação de CRC e verificação dos arquivos obrigatórios do manifesto.
 - Teste de dois lotes consecutivos: intervalo mínimo/máximo de 30 segundos, um contato por lote e pausa de 30 segundos. A próxima conversa abriu em menos de 10 segundos, sem clique antecipado; o segundo envio ocorreu automaticamente após pelo menos 60 segundos de relógio real; cada contato recebeu uma operação com arquivo e legenda juntos, sem envio de texto separado.
@@ -43,3 +43,7 @@ O teste de navegador não cria `.message-out` nem indicadores de entrega/leitura
 Um teste novo falhou no código anterior: a prévia não era encontrada quando o botão começava desabilitado. Depois da correção, a legenda é preenchida antes de exigir o botão habilitado. A suíte também cobre editor recriado por foco ou input, três tentativas em campo vazio sem duplicação, rejeição se o editor descartar todo o texto e colagem de texto simples quando insertText falha.
 
 O teste integrado troca o campo ao receber foco, mantém o botão desabilitado até o input e verifica um único preenchimento aceito, um clique automático e continuidade com delay real. O usuário ainda não forneceu a mensagem exata do novo erro; os testes reproduzem condições concretas do código, mas não identificam definitivamente a causa na conta real.
+
+## Pausas de preparação na versão 1.6.2
+
+O teste integrado atrasa a criação da prévia por 2,2 segundos no primeiro contato e 3,5 segundos no segundo. Registra os horários de paste, input e clique; exige pelo menos 3 segundos antes do input (e pelo menos 3,5 segundos no segundo cenário) e 1,5 segundo entre input e clique. Mantém as verificações de envio único e delay real de 60 segundos entre contatos. O teste de DOM confirma a escolha do campo dentro de media-caption-input-container quando há outro editor na prévia, preservando os demais campos e o texto literal.

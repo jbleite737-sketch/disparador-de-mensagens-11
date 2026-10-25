@@ -38,10 +38,18 @@
   const transfer=new DataTransfer();transfer.items.add(file);
   view.box.focus();
   view.box.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,composed:true,clipboardData:transfer}));
-  let preview;const deadline=Date.now()+35000;
-  while(Date.now()<deadline){preview=mediaPreview(true);if(preview)break;await sleep(250);}
-  if(!preview)throw failure('MEDIA_PREVIEW_TIMEOUT','A prévia da foto não ficou pronta. Nenhum envio acionado. '+dom.diagnostics(previewBaseline));
+  // Minimum transition time, followed by a live check of the media editor.
+  await sleep(3000);
+  let preview,stableSince=0,stable=false;const deadline=Date.now()+35000;
+  while(Date.now()<deadline){
+   const current=mediaPreview(true);
+   if(current&&current.caption===preview?.caption&&current.image===preview?.image){if(Date.now()-stableSince>=500){preview=current;stable=true;break;}}
+   else{preview=current;stableSince=Date.now();}
+   await sleep(250);
+  }
+  if(!preview||!stable)throw failure('MEDIA_PREVIEW_TIMEOUT','A prévia da foto não ficou pronta. Nenhum envio acionado. '+dom.diagnostics(previewBaseline));
   await dom.setCaption(preview.caption,job.text,()=>mediaPreview(true)?.caption);
+  await sleep(1500); // Let the caption input event settle before authorizing a send.
   const sendDeadline=Date.now()+15000;
   while(Date.now()<sendDeadline){const ready=mediaPreview();if(ready&&dom.captionReady(ready.caption,job.text))return ready;await sleep(250);}
   throw failure('SEND_BUTTON_NOT_FOUND','Legenda preparada, mas o botão de envio não ficou disponível. Nenhum envio acionado.');

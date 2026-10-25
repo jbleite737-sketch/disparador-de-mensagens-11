@@ -1,3 +1,10 @@
+# 1.6.2
+
+- Espera mínima de 3 segundos após colar a imagem e confirmação de estabilidade da prévia antes de preencher a legenda.
+- Espera adicional de 1,5 segundo após preencher a legenda, mantendo a exigência de botão habilitado e autorização da fila.
+- Prioridade para o campo dentro de media-caption-input-container na prévia; outros editores da conversa não são alterados.
+- Testes de abertura da prévia em 2,2 e 3,5 segundos, medição dos intervalos de colagem/input/clique e seleção do campo específico.
+
 # 1.6.1
 
 - Separada a localização da prévia/campo de legenda da disponibilidade do botão Enviar, corrigindo a dependência circular quando o botão começa desabilitado.

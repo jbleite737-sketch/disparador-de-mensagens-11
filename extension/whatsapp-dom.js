@@ -76,7 +76,9 @@
     for (const button of buttons) {
       // Stop at the smallest common container, including a preview inside #main/footer.
       for (let scope = button.parentElement; scope && scope !== document.body && scope !== document.documentElement; scope = scope.parentElement) {
-        const captions = editors.filter(e => scope.contains(e));
+        const candidates = editors.filter(e => scope.contains(e) && !e.disabled && !e.readOnly);
+        const marked = candidates.filter(e => e.closest('[data-testid="media-caption-input-container"]'));
+        const captions = marked.length ? marked : candidates;
         const media = images.filter(e => scope.contains(e));
         if (captions.length === 1 && media.length && buttons.filter(e => scope.contains(e)).length === 1) {
           matches.push({button, caption: captions[0], image: media[0], scope});

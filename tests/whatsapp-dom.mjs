@@ -90,5 +90,11 @@ try {
   const original=document.execCommand;document.execCommand=()=>false;
   try{await ContatoWhatsAppDOM.setCaption(e,'Texto <b>literal</b>');return {count,text:e.textContent,html:!!e.querySelector('b')};}finally{document.execCommand=original;}
  });assert.deepEqual(pasted,{count:1,text:'Texto <b>literal</b>',html:false});passed++;console.log('PASS plain-text paste fallback when insertText is unavailable');
+ await page.setContent('<div id="chat" contenteditable="true">Rascunho da conversa</div>');await page.addScriptTag({content:source});
+ const captionTarget=await page.evaluate(async()=>{
+  const before=ContatoWhatsAppDOM.snapshot(),section=document.createElement('section');
+  section.innerHTML='<canvas width="180" height="160"></canvas><div id="other" contenteditable="true">Outro editor</div><div data-testid="media-caption-input-container"><div id="media-caption" contenteditable="true" style="min-height:30px"><p><br></p></div></div><button aria-label="Enviar">Enviar</button>';document.body.append(section);
+  const p=ContatoWhatsAppDOM.preview(before);await ContatoWhatsAppDOM.setCaption(p.caption,'Oferta <b>literal</b>');return p.caption.id;
+ });assert.equal(captionTarget,'media-caption');assert.equal(await page.locator('#chat').innerText(),'Rascunho da conversa');assert.equal(await page.locator('#other').innerText(),'Outro editor');assert.equal(await page.locator('#media-caption b').count(),0);passed++;console.log('PASS explicit media caption container selected without touching other editors');
  console.log(`${passed} regressões de DOM passaram.`);
 }finally{await browser.close();}
