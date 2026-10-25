@@ -44,14 +44,14 @@
   await sleep(3000);
   let preview,stableSince=0,stable=false;const deadline=Date.now()+35000;
   while(Date.now()<deadline){
-   const current=mediaPreview(true);
+   const current=dom.mediaDraft(previewBaseline);
    if(current&&current.caption===preview?.caption&&current.image===preview?.image){if(Date.now()-stableSince>=500){preview=current;stable=true;break;}}
    else{preview=current;stableSince=Date.now();}
    await sleep(250);
   }
   if(!preview||!stable)throw failure('MEDIA_PREVIEW_TIMEOUT','A prévia da foto não ficou pronta. Nenhum envio acionado. '+dom.diagnostics(previewBaseline));
   await rpc('STAGE',{token:job.token,stage:'caption'});
-  await dom.setCaption(preview.caption,job.text,()=>mediaPreview(true)?.caption);
+  await dom.setCaption(preview.caption,job.text,()=>dom.mediaDraft(previewBaseline)?.caption);
   await sleep(1000); // Let the caption input event settle before authorizing a send.
   await rpc('STAGE',{token:job.token,stage:'button'});
   const sendDeadline=Date.now()+15000;

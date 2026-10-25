@@ -51,7 +51,7 @@ try{
     e.preventDefault();window.pasteAt=Date.now();window.pasteCount=(window.pasteCount||0)+1;
     const file=e.clipboardData.files[0];window.uploadedName=file.name;window.uploadedSize=file.size;
     setTimeout(()=>{
-    const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" role="textbox" style="min-height:30px"></div><div role="button" aria-label="Enviar" aria-disabled="true"><span data-icon="wds-ic-send-filled">Enviar foto</span></div>';
+    const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" role="textbox" style="min-height:30px"></div><div role="button" aria-disabled="true"><span data-icon="pending-media">Enviar foto</span></div>';
     const imageURL=URL.createObjectURL(file);const previewImage=new Image();previewImage.onload=()=>dialog.querySelector('canvas').getContext('2d').drawImage(previewImage,0,0,180,160);previewImage.src=imageURL;document.querySelector('#main footer').append(dialog);
     const initialEditor=dialog.querySelector('[contenteditable]');initialEditor.addEventListener('focus',()=>initialEditor.replaceWith(initialEditor.cloneNode(false)),{once:true});
     dialog.addEventListener('input',event=>{
@@ -63,7 +63,7 @@ try{
      });event.target.replaceWith(editor);
      const old=dialog.querySelector('[role=button]');const replacement=old.cloneNode(true);old.replaceWith(replacement);window.buttonReplaced=true;
     },{once:true});
-    dialog.addEventListener('change',()=>{window.changeCount=(window.changeCount||0)+1;dialog.querySelector('[role=button]').removeAttribute('aria-disabled');});
+    dialog.addEventListener('change',()=>{window.changeCount=(window.changeCount||0)+1;const send=dialog.querySelector('[role=button]');send.removeAttribute('aria-disabled');send.setAttribute('aria-label','Enviar');send.querySelector('span').setAttribute('data-icon','wds-ic-send-filled');});
     dialog.addEventListener('click',event=>{if(!event.target.closest('[role=button]')||event.target.closest('[role=button]').getAttribute('aria-disabled')==='true')return;send();});
     const send=()=>{window.clickAt=Date.now();window.mediaClicks=(window.mediaClicks||0)+1;const bubble=document.createElement('div');bubble.className='simulated-output';bubble.style.whiteSpace='pre-wrap';const image=document.createElement('img');image.src=imageURL;bubble.append(image,document.createTextNode(window.captionModel));document.querySelector('#history').append(bubble);dialog.remove();};
     },${p.startsWith('5511')?2200:3500});

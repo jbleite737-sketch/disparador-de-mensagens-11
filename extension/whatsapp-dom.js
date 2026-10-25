@@ -68,13 +68,33 @@
       media: new Map(mediaNodes().map(e => [e, signature(e)])),
     };
   }
-  function preview(before, {allowDisabled=false} = {}) {
+  function previewParts(before){
     const allEditors = [...document.querySelectorAll(editorSelector)];
     const editors = allEditors.filter(e => visible(e)
       && (!before.editors.has(e) || e.closest('[data-testid="media-caption-input-container"]'))
       && !allEditors.some(parent => parent!==e && parent.contains(e)));
     const images = mediaNodes().filter(e => !e.closest('.message-out,.message-in') && (!before.media.has(e) || before.media.get(e) !== signature(e)));
-    const buttons = sendButtons(document,{allowDisabled}).filter(e => !before.buttons.has(e));
+    return {editors,images};
+  }
+  // Caption preparation must not depend on finding the send control.
+  function mediaDraft(before){
+    const {editors,images}=previewParts(before),matches=[];
+    for(const editor of editors){
+      if(editor.disabled||editor.readOnly)continue;
+      for(let scope=editor.parentElement;scope&&scope!==document.body&&scope!==document.documentElement;scope=scope.parentElement){
+        const media=images.filter(e=>scope.contains(e));if(!media.length)continue;
+        const candidates=editors.filter(e=>scope.contains(e)&&!e.disabled&&!e.readOnly);
+        const marked=candidates.filter(e=>e.closest('[data-testid="media-caption-input-container"]'));
+        const captions=marked.length?marked:candidates;
+        if(captions.length===1&&captions[0]===editor)matches.push({caption:editor,image:media[0],scope});
+        break;
+      }
+    }
+    return matches.length===1?matches[0]:null;
+  }
+  function preview(before, {allowDisabled=false} = {}) {
+    const {editors,images}=previewParts(before);
+    const buttons=sendButtons(document,{allowDisabled}).filter(e=>!before.buttons.has(e));
     const matches = [];
     for (const button of buttons) {
       // Stop at the smallest common container, including a preview inside #main/footer.
@@ -113,10 +133,9 @@
             Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(current,caption);
             current.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:caption}));
           }else if(current.isConnected){
-            // Focus the editable root; place the caret inside its paragraph, when present.
-            // Only an empty editor reaches this path: never clear an existing caption.
-            const range=document.createRange();range.selectNodeContents(current.querySelector('p')||current);
-            range.deleteContents();range.collapse(false);
+            // Restore the v1.2 insertion on the editable root. Let native editing replace
+            // its empty structure; do not delete Lexical/React nodes by hand.
+            const range=document.createRange();range.selectNodeContents(current);
             const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
             let inputObserved=false;const observe=()=>{inputObserved=true;};
             current.addEventListener('input',observe,{capture:true});
@@ -143,5 +162,5 @@
   function diagnostics(before) {
     return `editores novos=${[...document.querySelectorAll(editorSelector)].filter(e => visible(e) && !before.editors.has(e)).length}; prévias visuais=${mediaNodes().filter(e => !before.media.has(e)).length}; botões de envio=${sendButtons().length}`;
   }
-  globalThis.ContatoWhatsAppDOM = {visible, normalize, text, sendButtons, mediaNodes, snapshot, preview, photoInput, setCaption, diagnostics, signature, comparable, captionReady};
+  globalThis.ContatoWhatsAppDOM = {visible, normalize, text, sendButtons, mediaNodes, snapshot, preview, mediaDraft, photoInput, setCaption, diagnostics, signature, comparable, captionReady};
 })();

@@ -111,5 +111,14 @@ try {
   },shape);
   assert.deepEqual(result,{text:'Legenda <b>literal</b>',inputs:1,changes:1,ready:true});passed++;console.log('PASS focused caption + input/change:',shape);
  }
+ await page.setContent('<footer><div id="draft" contenteditable="true">Não alterar</div><button aria-label="Enviar">Outro envio</button></footer>');await page.addScriptTag({content:source});
+ const independent=await page.evaluate(async()=>{
+  const before=ContatoWhatsAppDOM.snapshot(),section=document.createElement('section');
+  section.innerHTML='<canvas width="180" height="160"></canvas><div contenteditable="true" style="min-height:30px"><p><br></p></div>';document.body.append(section);
+  const draft=ContatoWhatsAppDOM.mediaDraft(before),beforeSend=ContatoWhatsAppDOM.preview(before);
+  draft.caption.addEventListener('input',()=>{const send=document.createElement('button');send.setAttribute('aria-label','Enviar');send.textContent='Enviar';section.append(send);},{once:true});
+  await ContatoWhatsAppDOM.setCaption(draft.caption,'Legenda restaurada',()=>ContatoWhatsAppDOM.mediaDraft(before)?.caption);
+  return {beforeSend:beforeSend===null,text:ContatoWhatsAppDOM.text(draft.caption),ready:!!ContatoWhatsAppDOM.preview(before)};
+ });assert.deepEqual(independent,{beforeSend:true,text:'Legenda restaurada',ready:true});assert.equal(await page.locator('#draft').innerText(),'Não alterar');passed++;console.log('PASS caption preparation independent of send button discovery');
  console.log(`${passed} regressões de DOM passaram.`);
 }finally{await browser.close();}

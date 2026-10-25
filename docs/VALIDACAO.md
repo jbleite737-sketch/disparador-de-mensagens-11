@@ -1,8 +1,8 @@
-# Validação da versão 1.6.3
+# Validação da versão 1.6.4
 
 - `npm test`: 23 testes passaram, zero falhas. Abrangem CSV/telefones, personalização, limites, exportação, persistência de mídia, rejeição de formatos, tokens da fila, pausa, reinício e resultados incertos.
 - `npm run test:browser`: 16 verificações passaram no Chromium. Incluem XLSX real, deduplicação, campos personalizados, rascunho, fluxo de texto, pausa, relatório, destinatário incorreto, lista colada, renderização sem execução de HTML, foto persistida, foto + legenda em um único clique, ausência de exceções e layout estreito.
-- `npm run test:dom`: 22 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, aceitação de conteúdo diferente não vazio, editor recriado sem texto e evento input de apoio.
+- `npm run test:dom`: 23 regressões passaram: prévia clássica, prévia dentro de `#main/footer`, canvas, fundo CSS, textarea, editor previamente oculto rejeição de prévias ambíguas, três estruturas com emojis-imagem, marcador de envio sem role, aceitação de conteúdo diferente não vazio, editor recriado sem texto e evento input de apoio.
 - A página de teste usa a política `script-src 'self'; object-src 'none'`, equivalente à restrição de scripts do manifesto. ExcelJS funciona como biblioteca local, sem CDN.
 - `npm run package`: ZIPs gerados e reabertos com validação de CRC e verificação dos arquivos obrigatórios do manifesto.
 - Teste de dois lotes consecutivos: intervalo mínimo/máximo de 30 segundos, um contato por lote e pausa de 30 segundos. A próxima conversa abriu em menos de 10 segundos, sem clique antecipado; o segundo envio ocorreu automaticamente após pelo menos 60 segundos de relógio real; cada contato recebeu uma operação com arquivo e legenda juntos, sem envio de texto separado.
@@ -53,3 +53,9 @@ O teste integrado atrasa a criação da prévia por 2,2 segundos no primeiro con
 A suíte de DOM verifica que campos com parágrafo editável aninhado, campo reutilizado no contêiner de legenda e contenteditable plaintext-only recebem texto literal, um input e um change. O botão no teste só habilita após change. O teste integrado também exige change para liberar o botão e verifica esperas mínimas de 3 segundos antes do input e 1 segundo entre input e clique, mantendo o delay entre contatos. As etapas da fila são testadas contra mensagens de aba incorreta e operação cancelada.
 
 A captura fornecida mostra o campo vazio, mas não contém o DOM ou o estado interno do WhatsApp. Essas correções são verificadas em cenários reproduzidos; o comportamento na conta real permanece não validado neste ambiente.
+
+## Preparação independente do botão na versão 1.6.4
+
+Comparação com abb2aa0 (versão 1.2) confirmou a inserção no editor completo por seleção nativa e insertText. Essa abordagem foi retomada sem restaurar a comparação exata de caracteres removida a pedido do usuário.
+
+O teste de DOM cria foto e campo sem botão e só adiciona Enviar depois de input. O teste integrado usa inicialmente um botão sem aria-label/data-icon de envio; change da legenda torna o botão reconhecível. Ambos exigem preenchimento antes de localizar o botão, preservando os campos de outras conversas. Trata-se de reprodução controlada de uma dependência do código, não de prova de que essa é a causa na conta real.

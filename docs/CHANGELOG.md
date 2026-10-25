@@ -1,3 +1,10 @@
+# 1.6.4
+
+- Preparação da legenda independente da identificação do botão Enviar: novo detector de imagem + campo, com rejeição de prévias ambíguas.
+- Restaurada a inserção nativa da versão 1.2 no editor completo, sem deleteContents nem seleção restrita ao parágrafo.
+- Mantidos input/change, colagem da imagem, agendamento, intervalos, validação não vazia e confirmação após clique.
+- Regressão integrada: o botão só passa a ter seletor reconhecível depois do evento change da legenda.
+
 # 1.6.3
 
 - Foco no editor e cursor dentro do parágrafo vazio antes de insertText; emissão de change no editor atual após a notificação input.
