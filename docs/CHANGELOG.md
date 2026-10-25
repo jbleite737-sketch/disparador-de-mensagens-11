@@ -1,3 +1,11 @@
+# 1.6.3
+
+- Foco no editor e cursor dentro do parágrafo vazio antes de insertText; emissão de change no editor atual após a notificação input.
+- Reconhecimento de campos aninhados, contenteditable plaintext-only e campo reutilizado dentro do contêiner explícito de legenda.
+- Esperas mínimas de 3 segundos após imagem e 1 segundo após legenda; botão habilitado, delay e janela continuam obrigatórios antes do clique.
+- Etapas de preparação exibidas no aviso da fila e protegidas pelo token/aba da operação.
+- Regressões para botão habilitado somente por change, foco em parágrafo e editores reutilizados/aninhados.
+
 # 1.6.2
 
 - Espera mínima de 3 segundos após colar a imagem e confirmação de estabilidade da prévia antes de preencher a legenda.

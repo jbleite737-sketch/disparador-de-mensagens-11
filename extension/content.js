@@ -30,6 +30,7 @@
  }
  function mediaPreview(allowDisabled=false){return previewBaseline?dom.preview(previewBaseline,{allowDisabled}):null;}
  async function preparePhoto(view){
+  await rpc('STAGE',{token:job.token,stage:'paste'});
   previewBaseline=dom.snapshot();
   const bytes=Uint8Array.from(atob(job.media.base64),c=>c.charCodeAt(0));
   const file=new File([bytes],job.media.name,{type:job.media.type});
@@ -39,6 +40,7 @@
   view.box.focus();
   view.box.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,composed:true,clipboardData:transfer}));
   // Minimum transition time, followed by a live check of the media editor.
+  await rpc('STAGE',{token:job.token,stage:'preview'});
   await sleep(3000);
   let preview,stableSince=0,stable=false;const deadline=Date.now()+35000;
   while(Date.now()<deadline){
@@ -48,8 +50,10 @@
    await sleep(250);
   }
   if(!preview||!stable)throw failure('MEDIA_PREVIEW_TIMEOUT','A prévia da foto não ficou pronta. Nenhum envio acionado. '+dom.diagnostics(previewBaseline));
+  await rpc('STAGE',{token:job.token,stage:'caption'});
   await dom.setCaption(preview.caption,job.text,()=>mediaPreview(true)?.caption);
-  await sleep(1500); // Let the caption input event settle before authorizing a send.
+  await sleep(1000); // Let the caption input event settle before authorizing a send.
+  await rpc('STAGE',{token:job.token,stage:'button'});
   const sendDeadline=Date.now()+15000;
   while(Date.now()<sendDeadline){const ready=mediaPreview();if(ready&&dom.captionReady(ready.caption,job.text))return ready;await sleep(250);}
   throw failure('SEND_BUTTON_NOT_FOUND','Legenda preparada, mas o botão de envio não ficou disponível. Nenhum envio acionado.');
@@ -65,6 +69,7 @@
    if(!surface()?.button)throw failure('SEND_BUTTON_NOT_FOUND','Botão de envio não encontrado. Contato ignorado sem enviar.');
   }
   // The next conversation opens immediately; sending remains gated by the worker.
+  if(Date.now()<(job.notBefore||0))await rpc('STAGE',{token:job.token,stage:'delay'});
   while(Date.now()<(job.notBefore||0))await sleep(Math.min(60000,job.notBefore-Date.now()));
   while(true){
    if(await rpc('READY',{token:job.token})&&await rpc('VERIFY',{token:job.token}))break;

@@ -88,3 +88,10 @@ test('botão ausente antes do clique registra erro e segue sem marcar como envia
  await h.send({type:'RESULT',token,status:'error',clicked:false,code:'SEND_BUTTON_NOT_FOUND',detail:'ausente'},h.content());
  assert.equal(h.read().contacts[0].status,'error');assert.equal(h.read().contacts[1].status,'preparing');assert.equal(h.nav(),2);assert.equal(h.read().status,'running');
 });
+
+test('etapas de preparação visíveis só podem ser atualizadas pelo job autorizado',async()=>{
+ const h=await harness();await prepare(h);const token=h.read().job.token;
+ assert.equal((await h.send({type:'STAGE',token,stage:'caption'},{...h.content(),tab:{id:8}})).ok,false);
+ assert.equal((await h.send({type:'STAGE',token,stage:'caption'},h.content())).ok,true);assert.match(h.read().notice,/Preenchendo a legenda/);
+ await h.send({type:'PAUSE'});assert.equal((await h.send({type:'STAGE',token,stage:'button'},h.content())).ok,false);
+});

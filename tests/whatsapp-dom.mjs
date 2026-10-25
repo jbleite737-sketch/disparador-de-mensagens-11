@@ -96,5 +96,20 @@ try {
   section.innerHTML='<canvas width="180" height="160"></canvas><div id="other" contenteditable="true">Outro editor</div><div data-testid="media-caption-input-container"><div id="media-caption" contenteditable="true" style="min-height:30px"><p><br></p></div></div><button aria-label="Enviar">Enviar</button>';document.body.append(section);
   const p=ContatoWhatsAppDOM.preview(before);await ContatoWhatsAppDOM.setCaption(p.caption,'Oferta <b>literal</b>');return p.caption.id;
  });assert.equal(captionTarget,'media-caption');assert.equal(await page.locator('#chat').innerText(),'Rascunho da conversa');assert.equal(await page.locator('#other').innerText(),'Outro editor');assert.equal(await page.locator('#media-caption b').count(),0);passed++;console.log('PASS explicit media caption container selected without touching other editors');
+ for(const shape of ['nested-paragraph','reused-caption','plaintext']){
+  await page.setContent('<div id="reused" contenteditable="true" style="min-height:30px"></div>');await page.addScriptTag({content:source});
+  const result=await page.evaluate(async shape=>{
+   const before=ContatoWhatsAppDOM.snapshot(),section=document.createElement('section');
+   section.innerHTML='<canvas width="180" height="160"></canvas><div data-testid="media-caption-input-container"></div><button aria-label="Enviar" disabled>Enviar</button>';document.body.append(section);
+   const container=section.querySelector('[data-testid]');
+   if(shape==='reused-caption')container.append(document.querySelector('#reused'));
+   else container.innerHTML=shape==='nested-paragraph'?'<div contenteditable="true"><p contenteditable="true" style="min-height:30px"><br></p></div>':'<div contenteditable="plaintext-only" style="min-height:30px"></div>';
+   let inputs=0,changes=0;container.addEventListener('input',()=>inputs++);container.addEventListener('change',()=>{changes++;section.querySelector('button').disabled=false;});
+   const preview=()=>ContatoWhatsAppDOM.preview(before,{allowDisabled:true});const p=preview();
+   await ContatoWhatsAppDOM.setCaption(p.caption,'Legenda <b>literal</b>',()=>preview()?.caption);
+   return {text:ContatoWhatsAppDOM.text(preview().caption),inputs,changes,ready:!!ContatoWhatsAppDOM.preview(before)};
+  },shape);
+  assert.deepEqual(result,{text:'Legenda <b>literal</b>',inputs:1,changes:1,ready:true});passed++;console.log('PASS focused caption + input/change:',shape);
+ }
  console.log(`${passed} regressões de DOM passaram.`);
 }finally{await browser.close();}

@@ -76,9 +76,15 @@ async function handle(m,sender){
   const message=s.media?{type:'image',media:await mediaPayload(s.media),caption:text}:{type:'text',text};
   return {...s.job,phone:c.phone,message};
  });
- if(['READY','VERIFY','RESULT'].includes(m.type))return locked(async()=>{
+ if(['STAGE','READY','VERIFY','RESULT'].includes(m.type))return locked(async()=>{
   const s=await read();if(!jobOwn(s,sender,m))throw Error('Operação antiga ou aba incorreta.');
   const c=s.contacts.find(c=>c.id===s.job.id);
+  if(m.type==='STAGE'){
+   if(s.status!=='running'||c.status!=='preparing')throw Error('Fila pausada.');
+   const stages={paste:'Colando a foto na conversa…',preview:'Aguardando a tela de mídia e o campo da legenda…',caption:'Preenchendo a legenda da foto…',button:'Legenda preparada. Aguardando o botão de envio…',delay:'Mensagem preparada. Aguardando o delay antes do envio automático…'};
+   if(!Object.hasOwn(stages,m.stage))throw Error('Etapa inválida.');
+   s.notice=stages[m.stage];c.detail=s.notice;await save(s);return true;
+  }
   if(m.type==='READY'){
    if(s.status!=='running'||c.status!=='preparing')throw Error('Fila pausada.');
    if(Date.now()<(s.job.notBefore||0))return false;

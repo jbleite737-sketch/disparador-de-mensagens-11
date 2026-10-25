@@ -5,7 +5,7 @@
     const style = getComputedStyle(element);
     return style.visibility !== 'hidden' && style.display !== 'none';
   };
-  const editorSelector = '[contenteditable="true"],textarea';
+  const editorSelector = '[contenteditable="true"],[contenteditable=""],[contenteditable="plaintext-only"],textarea';
   const normalize = value => String(value || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').replace(/[\u200b\u200e\u200f]/g, '').trim();
   // Read editable structure rather than appending a newline to every nested block.
   // In Chromium, inserted multiline text often becomes: first line<div>next line</div>.
@@ -69,7 +69,10 @@
     };
   }
   function preview(before, {allowDisabled=false} = {}) {
-    const editors = [...document.querySelectorAll(editorSelector)].filter(e => visible(e) && !before.editors.has(e));
+    const allEditors = [...document.querySelectorAll(editorSelector)];
+    const editors = allEditors.filter(e => visible(e)
+      && (!before.editors.has(e) || e.closest('[data-testid="media-caption-input-container"]'))
+      && !allEditors.some(parent => parent!==e && parent.contains(e)));
     const images = mediaNodes().filter(e => !e.closest('.message-out,.message-in') && (!before.media.has(e) || before.media.get(e) !== signature(e)));
     const buttons = sendButtons(document,{allowDisabled}).filter(e => !before.buttons.has(e));
     const matches = [];
@@ -110,7 +113,10 @@
             Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(current,caption);
             current.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:caption}));
           }else if(current.isConnected){
-            const range=document.createRange();range.selectNodeContents(current);
+            // Focus the editable root; place the caret inside its paragraph, when present.
+            // Only an empty editor reaches this path: never clear an existing caption.
+            const range=document.createRange();range.selectNodeContents(current.querySelector('p')||current);
+            range.deleteContents();range.collapse(false);
             const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
             let inputObserved=false;const observe=()=>{inputObserved=true;};
             current.addEventListener('input',observe,{capture:true});
@@ -122,6 +128,8 @@
               current.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,composed:true,clipboardData:transfer}));
             }
           }
+          const updated=resolveEditor();
+          if(updated?.isConnected)updated.dispatchEvent(new Event('change',{bubbles:true}));
         }
       }
       const deadline=Date.now()+1000,readyAfter=Date.now()+350;
